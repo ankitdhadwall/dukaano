@@ -1,0 +1,36 @@
+{
+  "name": "dukaano",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Dukaano — Billing, Stock aur Khata. Offline-first Kirana store SaaS for India.",
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:unit": "turbo run test:unit",
+    "test:integration": "turbo run test:integration",
+    "test:coverage": "turbo run test:coverage",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md,yaml,yml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md,yaml,yml}\"",
+    "db:up": "docker compose -f infra/docker-compose.yml up -d",
+    "db:down": "docker compose -f infra/docker-compose.yml down",
+    "db:reset": "docker compose -f infra/docker-compose.yml down -v && pnpm db:up",
+    "db:migrate": "pnpm --filter @dukaano/api db:migrate",
+    "db:seed": "pnpm --filter @dukaano/api db:seed",
+    "db:studio": "pnpm --filter @dukaano/api db:studio",
+    "ci": "turbo run lint typecheck test build"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "prettier": "^3.4.2",
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.2"
+  }
+}

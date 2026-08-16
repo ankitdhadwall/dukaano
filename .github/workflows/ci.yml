@@ -1,0 +1,139 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # The migration/owner role. Used only by `prisma migrate deploy`.
+  DATABASE_ADMIN_URL_TEST: postgresql://dukaano:ci_password@localhost:5432/dukaano_test?schema=public
+  # The application role. NOT the owner and without BYPASSRLS — PrismaService asserts this at
+  # boot, so a CI misconfiguration that would weaken tenant isolation fails the build here rather
+  # than reaching staging.
+  DATABASE_URL_TEST: postgresql://dukaano_app:ci_password@localhost:5432/dukaano_test?schema=public
+
+jobs:
+  packages:
+    name: Packages (lint · typecheck · unit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter "./packages/**" build
+      - run: pnpm --filter "./packages/**" lint
+      - run: pnpm --filter "./packages/**" typecheck
+
+      # @dukaano/money and @dukaano/business-logic carry HARD 100% coverage gates (blueprint
+      # §26.1). Every rupee and every gram flows through them, they are pure and I/O-free, and a
+      # bug there is both the most likely to be silent and the most costly to a shopkeeper.
+      - name: Unit tests with coverage gates
+        run: pnpm --filter "./packages/**" test:coverage
+
+  api:
+    name: API (integration against real Postgres)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        # Pinned to the production major. Dukaano depends on Postgres-specific features that are
+        # not portable: RLS (§13), pg_trgm search (§15.3), generated columns, and
+        # pg_current_xact_id()/xid8 for the sync cursor (§14.5). Testing against anything else
+        # would prove nothing.
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: dukaano
+          POSTGRES_PASSWORD: ci_password
+          POSTGRES_DB: dukaano_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U dukaano"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter "./packages/**" build
+
+      - name: Generate Prisma client
+        working-directory: apps/api
+        run: pnpm exec prisma generate
+        env:
+          DATABASE_URL: ${{ env.DATABASE_ADMIN_URL_TEST }}
+
+      - name: Apply migrations
+        working-directory: apps/api
+        run: pnpm exec prisma migrate deploy
+        env:
+          DATABASE_URL: ${{ env.DATABASE_ADMIN_URL_TEST }}
+
+      - name: Lint and typecheck
+        working-directory: apps/api
+        run: |
+          pnpm exec eslint src test
+          pnpm exec tsc -p tsconfig.json --noEmit
+
+      # These three suites are the Phase 1 acceptance criteria:
+      #   tenant-isolation  — two shops cannot see each other, generated from the route table
+      #   authorization     — the RBAC matrix is enforced per route, for all three roles
+      #   auth-tokens       — refresh rotation, reuse detection, phone normalization
+      - name: Integration tests
+        working-directory: apps/api
+        run: pnpm exec vitest run
+
+      - run: pnpm --filter @dukaano/api build
+
+  migrations:
+    name: Migrations are reversible and complete
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: dukaano
+          POSTGRES_PASSWORD: ci_password
+          POSTGRES_DB: dukaano_migration_check
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U dukaano"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter "./packages/**" build
+
+      # Catches the classic mistake of editing schema.prisma without generating a migration —
+      # which works locally against an already-migrated database and fails on a fresh deploy.
+      - name: Schema and migrations agree
+        working-directory: apps/api
+        run: |
+          pnpm exec prisma migrate deploy
+          pnpm exec prisma migrate diff \
+            --from-schema-datasource prisma/schema.prisma \
+            --to-schema-datamodel prisma/schema.prisma \
+            --exit-code
+        env:
+          DATABASE_URL: postgresql://dukaano:ci_password@localhost:5432/dukaano_migration_check?schema=public

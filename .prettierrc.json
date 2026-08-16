@@ -1,0 +1,19 @@
+{
+  "semi": false,
+  "singleQuote": true,
+  "trailingComma": "all",
+  "printWidth": 100,
+  "tabWidth": 2,
+  "arrowParens": "always",
+  "endOfLine": "lf",
+  "overrides": [
+    {
+      "files": "*.md",
+      "options": { "printWidth": 100, "proseWrap": "preserve" }
+    },
+    {
+      "files": "*.prisma",
+      "options": { "tabWidth": 2 }
+    }
+  ]
+}
