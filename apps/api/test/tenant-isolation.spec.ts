@@ -20,8 +20,9 @@ import { enumerateRoutes } from './route-table'
  */
 describe('tenant isolation', () => {
   let app: INestApplication
-  let shopA: { token: string; shopId: string; membershipId: string }
-  let shopB: { token: string; shopId: string; membershipId: string }
+  type Shop = { token: string; shopId: string; membershipId: string; productId: string }
+  let shopA: Shop
+  let shopB: Shop
 
   const register = async (shopName: string) => {
     const phone = nextPhone()
@@ -38,7 +39,25 @@ describe('tenant isolation', () => {
       .set('Authorization', `Bearer ${token}`)
       .expect(200)
 
-    return { token, shopId, membershipId: me.body.data.membershipId as string }
+    // Every shop gets a product, so the catalogue and inventory routes have a real foreign id
+    // to be attacked with.
+    const product = await request(app.getHttpServer())
+      .post('/v1/products')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        nameEn: `${shopName} Sugar`,
+        unitCode: 'KG',
+        sellingPricePaise: 5000,
+        openingStockMilli: 10_000,
+      })
+      .expect(201)
+
+    return {
+      token,
+      shopId,
+      membershipId: me.body.data.membershipId as string,
+      productId: product.body.data.id as string,
+    }
   }
 
   beforeAll(async () => {
@@ -91,8 +110,8 @@ describe('tenant isolation', () => {
    */
   const attacks: {
     name: string
-    method: 'get' | 'patch' | 'post'
-    path: (victim: typeof shopB) => string
+    method: 'get' | 'patch' | 'post' | 'delete'
+    path: (victim: Shop) => string
     body?: unknown
   }[] = [
     {
@@ -105,6 +124,27 @@ describe('tenant isolation', () => {
       method: 'patch',
       path: (victim) => `/v1/memberships/${victim.membershipId}`,
       body: { role: 'CASHIER' },
+    },
+    {
+      name: 'GET /v1/products/:id with the victim product id',
+      method: 'get',
+      path: (victim) => `/v1/products/${victim.productId}`,
+    },
+    {
+      name: 'PATCH /v1/products/:id — repricing another shop’s product',
+      method: 'patch',
+      path: (victim) => `/v1/products/${victim.productId}`,
+      body: { sellingPricePaise: 1 },
+    },
+    {
+      name: 'DELETE /v1/products/:id — archiving another shop’s product',
+      method: 'delete',
+      path: (victim) => `/v1/products/${victim.productId}`,
+    },
+    {
+      name: 'GET /v1/inventory/products/:productId — reading another shop’s stock',
+      method: 'get',
+      path: (victim) => `/v1/inventory/products/${victim.productId}`,
     },
   ]
 
@@ -144,6 +184,24 @@ describe('tenant isolation', () => {
     expect(b.body.data[0].role).toBe('OWNER')
   })
 
+  it('leaves the victim’s product untouched after a cross-tenant write attempt', async () => {
+    await request(app.getHttpServer())
+      .patch(`/v1/products/${shopB.productId}`)
+      .set('Authorization', `Bearer ${shopA.token}`)
+      .send({ sellingPricePaise: 1 })
+      .expect(404)
+
+    const survived = await request(app.getHttpServer())
+      .get(`/v1/products/${shopB.productId}`)
+      .set('Authorization', `Bearer ${shopB.token}`)
+      .expect(200)
+
+    // A 404 that nonetheless repriced the product would be the worst possible outcome: silent,
+    // and directly costing the other shop money on every subsequent sale.
+    expect(survived.body.data.sellingPricePaise).toBe(5000)
+    expect(survived.body.data.archivedAt).toBeNull()
+  })
+
   it('rejects a token whose shop claim was swapped for another shop', async () => {
     // A forged claim cannot help: the guard re-reads the membership from the database, and no
     // membership links Shop A's user to Shop B.
@@ -179,6 +237,8 @@ describe('tenant isolation', () => {
           .path(shopB)
           .replace(shopB.shopId, ':id')
           .replace(shopB.membershipId, ':id')
+          .replace(`/inventory/products/${shopB.productId}`, '/inventory/products/:productId')
+          .replace(shopB.productId, ':id')
         return `${a.method.toUpperCase()} ${templated}`
       }),
     )

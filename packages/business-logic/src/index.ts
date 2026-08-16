@@ -28,3 +28,15 @@ export {
   type BusinessDateRange,
   type ResolvedTimestamp,
 } from './time/business-date'
+
+export {
+  applyInboundCost,
+  applyMovement,
+  stockValue,
+  totalStockValue,
+  isLowStock,
+  crossedBelowThreshold,
+  EMPTY_COSTING_STATE,
+  type CostingState,
+  type InboundMovement,
+} from './inventory/costing'

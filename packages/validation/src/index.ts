@@ -40,3 +40,14 @@ export {
   type PermissionOverridesInput,
   type UpdateMembershipInput,
 } from './schemas/shop'
+
+export {
+  unitCodeSchema,
+  createProductSchema,
+  updateProductSchema,
+  stockAdjustmentSchema,
+  inventoryTransactionTypeSchema,
+  type CreateProductInput,
+  type UpdateProductInput,
+  type StockAdjustmentInput,
+} from './schemas/catalogue'

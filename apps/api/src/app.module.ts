@@ -5,6 +5,8 @@ import { CommonModule } from './common/common.module'
 import { AuthModule } from './modules/auth/auth.module'
 import { ShopsModule } from './modules/shops/shops.module'
 import { MembershipsModule } from './modules/memberships/memberships.module'
+import { CatalogueModule } from './modules/catalogue/catalogue.module'
+import { InventoryModule } from './modules/inventory/inventory.module'
 import { HealthController } from './health.controller'
 import { AuthGuard } from './common/guards/auth.guard'
 import { DomainExceptionFilter } from './common/errors/domain-exception.filter'
@@ -37,6 +39,8 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor'
     AuthModule,
     ShopsModule,
     MembershipsModule,
+    InventoryModule,
+    CatalogueModule,
   ],
   controllers: [HealthController],
   providers: [
