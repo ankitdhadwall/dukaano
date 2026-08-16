@@ -1,4 +1,19 @@
 {
   "extends": "./tsconfig.json",
+  "compilerOptions": {
+    /*
+     * The build cache lives INSIDE dist, deliberately.
+     *
+     * `incremental` is on in the shared base config, and nest-cli.json sets `deleteOutDir: true`.
+     * With the cache outside dist those two silently disagree: nest deletes the output, tsc reads
+     * a build-info file saying everything is current, emits nothing, and exits 0. The build
+     * "succeeds" and produces no dist/main.js, which surfaces much later as
+     * `Cannot find module '.../dist/main'` when someone tries to run the server.
+     *
+     * Keeping the cache in dist makes deleting the output delete the cache with it, so the two
+     * can never drift.
+     */
+    "tsBuildInfoFile": "./dist/.tsbuildinfo"
+  },
   "exclude": ["node_modules", "dist", "test", "**/*.spec.ts", "**/*.test.ts"]
 }
