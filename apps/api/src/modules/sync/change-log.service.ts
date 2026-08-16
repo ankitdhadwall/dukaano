@@ -16,7 +16,7 @@ import { currentContext, tenantClient } from '../../common/prisma/tenant-context
  * transaction's real id rather than anything application code could get wrong.
  */
 
-/** Entities a device replicates. Sales, payments and ledger entries join this in Phase 4. */
+/** Entities a device replicates. */
 export const SYNCABLE_ENTITIES = [
   'product',
   'product_alias',
@@ -26,6 +26,15 @@ export const SYNCABLE_ENTITIES = [
   'inventory_balance',
   'inventory_transaction',
   'shop_settings',
+  // Phase 4 — billing. `sale_item` and `payment_allocation` are deliberately absent: they are
+  // children that never change independently of their parent, so a device applies them from the
+  // parent's payload. Logging them separately would triple the change volume of every sale for
+  // no additional information.
+  'sale',
+  'sale_return',
+  'payment',
+  'customer_ledger_entry',
+  'customer_balance',
 ] as const
 
 export type SyncableEntity = (typeof SYNCABLE_ENTITIES)[number]

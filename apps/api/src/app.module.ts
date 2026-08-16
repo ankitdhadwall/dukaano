@@ -8,6 +8,8 @@ import { ShopsModule } from './modules/shops/shops.module'
 import { MembershipsModule } from './modules/memberships/memberships.module'
 import { CatalogueModule } from './modules/catalogue/catalogue.module'
 import { InventoryModule } from './modules/inventory/inventory.module'
+import { KhataModule } from './modules/khata/khata.module'
+import { SalesModule } from './modules/sales/sales.module'
 import { SyncModule } from './modules/sync/sync.module'
 import { HealthController } from './health.controller'
 import { AuthGuard } from './common/guards/auth.guard'
@@ -46,6 +48,8 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor'
     MembershipsModule,
     InventoryModule,
     CatalogueModule,
+    KhataModule,
+    SalesModule,
     SyncModule,
   ],
   controllers: [HealthController],

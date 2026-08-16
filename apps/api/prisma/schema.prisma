@@ -178,6 +178,7 @@ model Shop {
   inventoryBalances     InventoryBalance[]
   customerBalances      CustomerBalance[]
   numberLeases  NumberLease[]
+  saleReturns   SaleReturn[]
   auditLogs     AuditLog[]
   notifications Notification[]
 
@@ -577,6 +578,7 @@ model Customer {
   balance  CustomerBalance?
   sales    Sale[]
   payments Payment[]
+  returns  SaleReturn[]
   ledgerEntries CustomerLedgerEntry[]
 
   @@unique([shopId, id])
@@ -691,6 +693,7 @@ model Sale {
   items    SaleItem[]
   payments Payment[]
   allocations PaymentAllocation[]
+  returns  SaleReturn[]
 
   @@unique([shopId, id])
   @@unique([shopId, saleNumber])
@@ -728,6 +731,71 @@ model SaleItem {
   @@index([shopId, saleId])
   @@index([shopId, productId, saleId])
   @@map("sale_item")
+}
+
+/// A return document (§25 E-11, E-12, E-39). Its own document rather than a mutation of the sale:
+/// the original bill is in the customer's hand and must keep rendering exactly as printed, and
+/// "what was returned, when, by whom" is a question the shopkeeper will be asked.
+///
+/// Order of operations on a partially-paid credit sale is fixed and is the reason E-39 exists:
+/// reverse the credit FIRST, then refund cash, never exceeding what was actually paid. Refunding
+/// cash first on a bill that was mostly udhaar hands over money the shop never received.
+model SaleReturn {
+  id     String @id @db.Uuid
+  shopId String @map("shop_id") @db.Uuid
+  saleId String @map("sale_id") @db.Uuid
+  customerId String? @map("customer_id") @db.Uuid
+
+  returnNumber String @map("return_number")
+
+  /// Total value of the goods coming back, always POSITIVE.
+  totalPaise BigInt @map("total_paise")
+  /// How that value was given back: cash out, credit reversed, or a split of both.
+  refundCashPaise   BigInt @default(0) @map("refund_cash_paise")
+  refundCreditPaise BigInt @default(0) @map("refund_credit_paise")
+
+  reason String?
+
+  businessDate DateTime @map("business_date") @db.Date
+  occurredAt   DateTime @map("occurred_at") @db.Timestamptz(3)
+
+  createdByUserId String   @map("created_by_user_id") @db.Uuid
+  deviceId        String?  @map("device_id") @db.Uuid
+  opId            String?  @unique @map("op_id") @db.Uuid
+  rowVersion      BigInt   @default(1) @map("row_version")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  shop     Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  sale     Sale      @relation(fields: [shopId, saleId], references: [shopId, id])
+  customer Customer? @relation(fields: [shopId, customerId], references: [shopId, id])
+  items    SaleReturnItem[]
+
+  @@unique([shopId, id])
+  @@unique([shopId, returnNumber])
+  @@index([shopId, saleId])
+  @@index([shopId, businessDate(sort: Desc)])
+  @@map("sale_return")
+}
+
+model SaleReturnItem {
+  id       String @id @db.Uuid
+  shopId   String @map("shop_id") @db.Uuid
+  returnId String @map("return_id") @db.Uuid
+  saleItemId String @map("sale_item_id") @db.Uuid
+  productId  String @map("product_id") @db.Uuid
+
+  /// Positive quantity coming back. Cumulative returns per sale item are capped at what was sold.
+  qtyMilli       BigInt @map("qty_milli")
+  /// The price from the ORIGINAL bill, never the current one — the refund must match what was
+  /// charged, whatever the product costs today.
+  unitPricePaise BigInt @map("unit_price_paise")
+  lineTotalPaise BigInt @map("line_total_paise")
+
+  saleReturn SaleReturn @relation(fields: [shopId, returnId], references: [shopId, id], onDelete: Cascade)
+
+  @@index([shopId, returnId])
+  @@index([shopId, saleItemId])
+  @@map("sale_return_item")
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════

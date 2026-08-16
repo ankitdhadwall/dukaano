@@ -29,6 +29,10 @@ describe('tenant isolation', () => {
     categoryId: string
     deviceId: string
     conflictId: string
+    customerId: string
+    saleId: string
+    saleItemId: string
+    paymentId: string
   }
   let shopA: Shop
   let shopB: Shop
@@ -101,6 +105,32 @@ describe('tenant isolation', () => {
       .set('Authorization', `Bearer ${token}`)
       .expect(200)
 
+    // A customer, a credit sale against them, and a khata collection — so the billing routes have
+    // real financial ids to be attacked with. Anything less would test the router, not tenancy.
+    const customer = await request(app.getHttpServer())
+      .post('/v1/customers')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: `${shopName} Regular` })
+      .expect(201)
+
+    const sale = await request(app.getHttpServer())
+      .post('/v1/sales')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        customerId: customer.body.data.id,
+        items: [
+          { productId: product.body.data.id, qtyMilli: 1_000, unitPricePaise: 5000 },
+        ],
+        payments: [{ method: 'CASH', amountPaise: 2000 }],
+      })
+      .expect(201)
+
+    const payment = await request(app.getHttpServer())
+      .post('/v1/payments')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ customerId: customer.body.data.id, method: 'CASH', amountPaise: 1000 })
+      .expect(201)
+
     return {
       token,
       shopId,
@@ -109,6 +139,10 @@ describe('tenant isolation', () => {
       categoryId: category.body.data.id as string,
       deviceId,
       conflictId: conflicts.body.data[0].id as string,
+      customerId: customer.body.data.id as string,
+      saleId: sale.body.data.id as string,
+      saleItemId: sale.body.data.items[0].id as string,
+      paymentId: payment.body.data.id as string,
     }
   }
 
@@ -224,6 +258,56 @@ describe('tenant isolation', () => {
       method: 'post',
       path: (victim) => `/v1/sync/conflicts/${victim.conflictId}/acknowledge`,
     },
+    {
+      name: 'GET /v1/customers/:id — reading another shop’s customer',
+      method: 'get',
+      path: (victim) => `/v1/customers/${victim.customerId}`,
+    },
+    {
+      name: 'PATCH /v1/customers/:id — editing another shop’s customer',
+      method: 'patch',
+      path: (victim) => `/v1/customers/${victim.customerId}`,
+      body: { name: 'Renamed by an intruder' },
+    },
+    {
+      name: 'DELETE /v1/customers/:id — archiving another shop’s customer',
+      method: 'delete',
+      path: (victim) => `/v1/customers/${victim.customerId}`,
+    },
+    {
+      // The single most commercially sensitive read in the product: who owes what.
+      name: 'GET /v1/customers/:id/statement — reading another shop’s khata',
+      method: 'get',
+      path: (victim) => `/v1/customers/${victim.customerId}/statement`,
+    },
+    {
+      name: 'GET /v1/sales/:id — reading another shop’s bill',
+      method: 'get',
+      path: (victim) => `/v1/sales/${victim.saleId}`,
+    },
+    {
+      name: 'POST /v1/sales/:id/cancel — cancelling another shop’s sale',
+      method: 'post',
+      path: (victim) => `/v1/sales/${victim.saleId}/cancel`,
+      body: { reason: 'Sabotage' },
+    },
+    {
+      name: 'GET /v1/sales/:id/returns — reading another shop’s returns',
+      method: 'get',
+      path: (victim) => `/v1/sales/${victim.saleId}/returns`,
+    },
+    {
+      name: 'POST /v1/sales/:id/returns — refunding from another shop’s till',
+      method: 'post',
+      path: (victim) => `/v1/sales/${victim.saleId}/returns`,
+      body: { items: [{ saleItemId: '00000000-0000-4000-8000-000000000001', qtyMilli: 1000 }] },
+    },
+    {
+      name: 'POST /v1/payments/:id/reverse — reversing another shop’s payment',
+      method: 'post',
+      path: (victim) => `/v1/payments/${victim.paymentId}/reverse`,
+      body: { reason: 'Sabotage' },
+    },
   ]
 
   describe.each(attacks)('$name', ({ method, path, body }) => {
@@ -294,6 +378,24 @@ describe('tenant isolation', () => {
 
     expect(survived.body.data.nameEn).toBe('Gupta Kirana Staples')
     expect(survived.body.data.archivedAt).toBeNull()
+  })
+
+  it('leaves the victim’s bill untouched after a cross-tenant cancel attempt', async () => {
+    await request(app.getHttpServer())
+      .post(`/v1/sales/${shopB.saleId}/cancel`)
+      .set('Authorization', `Bearer ${shopA.token}`)
+      .send({ reason: 'Sabotage' })
+      .expect(404)
+
+    const survived = await request(app.getHttpServer())
+      .get(`/v1/sales/${shopB.saleId}`)
+      .set('Authorization', `Bearer ${shopB.token}`)
+      .expect(200)
+
+    // A 404 that nonetheless cancelled the sale would be the worst outcome available: silent, and
+    // it would return another shop's stock and reverse their customer's khata.
+    expect(survived.body.data.status).toBe('COMPLETED')
+    expect(survived.body.data.cancelledAt).toBeNull()
   })
 
   it('rejects a token whose shop claim was swapped for another shop', async () => {

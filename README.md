@@ -14,8 +14,9 @@ budget Android phone with unreliable connectivity.
 
 ## Status
 
-**Phase 3 complete — Sync engine.** The API is real: multi-tenant, RLS-enforced, audit-logged,
-offline-capable, and seeded with a working general store. No web or mobile client yet.
+**Phase 4 complete (server) — Billing & payments.** The API is real: multi-tenant, RLS-enforced,
+audit-logged, offline-capable, and it can now bill, take payments, run a khata and handle returns.
+No web or mobile client yet — that is Phase 5.
 
 | Phase | Scope | State |
 |---|---|---|
@@ -23,9 +24,10 @@ offline-capable, and seeded with a working general store. No web or mobile clien
 | 1 | Foundation — auth, tenancy, RBAC, money | ✅ [Status](docs/phase-1-status.md) |
 | 2 | Catalogue, inventory, import | ✅ [Status](docs/phase-2-status.md) — 4 of 4 criteria |
 | 3 | Offline sync engine | ✅ [Status](docs/phase-3-status.md) — 4 of 4 criteria |
-| 4 | Billing & payments | ⬜ Next |
+| 4 | Billing & payments | ✅ [Status](docs/phase-4-status.md) — server done; the on-device timing criterion needs a device |
+| 5 | Mobile app (React Native) | ⬜ Next |
 
-**773 tests.** `@dukaano/money` and `@dukaano/business-logic` hold 100% branch coverage — they
+**860 tests.** `@dukaano/money` and `@dukaano/business-logic` hold 100% branch coverage — they
 carry the rules where a silent bug is most expensive.
 
 👉 **[Read the Product & Engineering Blueprint](docs/dukaano-blueprint.md)** — the full product

@@ -1,5 +1,6 @@
 import { Global, Module } from '@nestjs/common'
 import { CatalogueModule } from '../catalogue/catalogue.module'
+import { SalesModule } from '../sales/sales.module'
 import { ChangeLogService } from './change-log.service'
 import { ConflictsService } from './conflicts.service'
 import { DevicesService } from './devices.service'
@@ -15,7 +16,7 @@ import { SyncService } from './sync.service'
  */
 @Global()
 @Module({
-  imports: [CatalogueModule],
+  imports: [CatalogueModule, SalesModule],
   controllers: [SyncController],
   providers: [ChangeLogService, SyncService, DevicesService, ConflictsService, SyncRetentionJob],
   exports: [ChangeLogService, SyncRetentionJob],

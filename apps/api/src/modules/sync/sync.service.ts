@@ -15,8 +15,11 @@ import { BusinessRuleError } from '../../common/errors/domain-error'
 import { PrismaService } from '../../common/prisma/prisma.service'
 import { currentContext, tenantClient } from '../../common/prisma/tenant-context'
 import { serializeBigInts } from '../../common/interceptors/response-envelope.interceptor'
+import { createSaleSchema, recordPaymentSchema } from '@dukaano/validation'
 import type { PushOperation, SyncPushInput } from '@dukaano/validation'
 import { ProductsService } from '../catalogue/products.service'
+import { PaymentsService } from '../khata/payments.service'
+import { SalesService } from '../sales/sales.service'
 
 export type OpStatus = 'applied' | 'duplicate' | 'conflict' | 'rejected'
 
@@ -52,6 +55,8 @@ export class SyncService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly products: ProductsService,
+    private readonly sales: SalesService,
+    private readonly payments: PaymentsService,
   ) {}
 
   // ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -205,12 +210,50 @@ export class SyncService {
     }
   }
 
-  /** Route an op to the domain service that owns it. */
+  /**
+   * Route an op to the domain service that owns it.
+   *
+   * Every branch goes through the **same service the online path uses** (§14.4 step 4). That is a
+   * hard rule, not a convenience: a parallel sync writer drifts from online behaviour, and the
+   * drift surfaces as data that is subtly different depending on whether the shop had signal.
+   */
   private async dispatch(shopId: string, op: PushOperation): Promise<OpResult> {
     if (op.entity === 'product') {
       return op.opType === 'create'
         ? this.applyProductCreate(shopId, op)
         : this.applyProductUpdate(shopId, op)
+    }
+
+    // Financial facts are append-only and idempotent on their client-generated id, so a create is
+    // the only op type they accept — §14.7. There is no "edit a sale"; a mistake is a cancellation
+    // or a return, each of which is its own op.
+    if (op.entity === 'sale' && op.opType === 'create') {
+      /*
+       * Parsed with `createSaleSchema` — **the same schema the online route uses** (§14.4 step 3).
+       *
+       * Not optional. Skipping it was the first version, and it broke immediately: `occurredAt`
+       * arrives as a JSON string and the service expects a Date, so an offline sale crashed on a
+       * date it had every right to send. Beyond the coercion, a queued op is untrusted input that
+       * has been sitting on a device for a fortnight, and it must clear exactly the same bar as a
+       * request arriving at the counter.
+       */
+      const parsed = createSaleSchema.parse({
+        ...(op.payload as Record<string, unknown>),
+        id: op.entityId,
+        opId: op.opId,
+      })
+      const sale = await this.sales.create(shopId, parsed)
+      return { opId: op.opId, status: 'applied', rowVersion: 1, serverEntity: sale }
+    }
+
+    if (op.entity === 'payment' && op.opType === 'create') {
+      const parsed = recordPaymentSchema.parse({
+        ...(op.payload as Record<string, unknown>),
+        id: op.entityId,
+        opId: op.opId,
+      })
+      const payment = await this.payments.record(shopId, parsed)
+      return { opId: op.opId, status: 'applied', rowVersion: 1, serverEntity: payment }
     }
 
     // Unknown entities are rejected rather than ignored. A client one version ahead of the server
@@ -673,6 +716,7 @@ export class SyncService {
     if (op.entity === 'product') return 'product.write'
     if (op.entity === 'customer') return 'customer.write'
     if (op.entity === 'inventory_transaction') return 'inventory.adjust'
+    if (op.entity === 'payment') return 'customer.payment.receive'
     return 'sale.create'
   }
 

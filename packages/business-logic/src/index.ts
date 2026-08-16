@@ -97,3 +97,16 @@ export {
   type BootstrapReason,
   type BootstrapDecision,
 } from './sync/cursor'
+
+export {
+  allocateFifo,
+  signedLedgerAmount,
+  ledgerEntryRequiresReason,
+  applyLedgerEntry,
+  ageingBucket,
+  AGEING_BUCKETS,
+  type OpenBill,
+  type Allocation,
+  type AllocationResult,
+  type AgeingBucketKey,
+} from './ledger/allocation'
