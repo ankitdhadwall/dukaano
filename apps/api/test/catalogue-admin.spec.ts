@@ -1,8 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import request from 'supertest'
-import { execSync } from 'node:child_process'
 import type { INestApplication } from '@nestjs/common'
-import { createTestApp, nextPhone, prepareTestDatabase, truncateAll } from './harness'
+import { createTestApp, nextPhone, prepareTestDatabase, sql, truncateAll } from './harness'
 
 /**
  * Phase 2 close-out — categories, units, master-catalogue adoption, and bulk import.
@@ -782,11 +781,7 @@ describe('catalogue administration', () => {
       const search = await request(server()).get('/v1/products/search?q=chana').set(auth()).expect(200)
       const productId = search.body.data[0].id
 
-      execSync(
-        `docker exec dukaano-postgres psql -U dukaano -d dukaano_test -qc ` +
-          `"UPDATE inventory_balance SET qty_milli = qty_milli + 5000 WHERE product_id = '${productId}'"`,
-        { stdio: 'pipe', shell: '/bin/bash' },
-      )
+      sql(`UPDATE inventory_balance SET qty_milli = qty_milli + 5000 WHERE product_id = '${productId}'`)
 
       const { ReconciliationJob } = await import('../src/modules/inventory/reconciliation.job')
       const result = await app.get(ReconciliationJob).reconcileAllShops()
@@ -801,11 +796,7 @@ describe('catalogue administration', () => {
         .expect(200)
       expect(stock.body.data.qtyMilli).toBe(17_000)
 
-      execSync(
-        `docker exec dukaano-postgres psql -U dukaano -d dukaano_test -qc ` +
-          `"UPDATE inventory_balance SET qty_milli = qty_milli - 5000 WHERE product_id = '${productId}'"`,
-        { stdio: 'pipe', shell: '/bin/bash' },
-      )
+      sql(`UPDATE inventory_balance SET qty_milli = qty_milli - 5000 WHERE product_id = '${productId}'`)
     }, 60_000)
   })
 

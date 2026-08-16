@@ -1,8 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import request from 'supertest'
-import { execSync } from 'node:child_process'
 import type { INestApplication } from '@nestjs/common'
-import { createTestApp, nextPhone, prepareTestDatabase, truncateAll } from './harness'
+import { createTestApp, nextPhone, prepareTestDatabase, sql, sqlNumber as num, truncateAll } from './harness'
 
 /**
  * Phase 5 — Customers & Khata (blueprint §18, §28).
@@ -24,15 +23,7 @@ describe('customers and khata', () => {
   const auth = () => ({ Authorization: `Bearer ${token}` })
   const server = () => app.getHttpServer()
 
-  const sql = (statement: string) =>
-    execSync(
-      `docker exec dukaano-postgres psql -U dukaano -d dukaano_test -qtAc ${JSON.stringify(statement)}`,
-      { stdio: 'pipe', shell: '/bin/bash' },
-    )
-      .toString()
-      .trim()
 
-  const num = (statement: string) => Number(sql(statement) || '0')
 
   beforeAll(async () => {
     prepareTestDatabase()

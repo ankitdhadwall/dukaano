@@ -39,21 +39,72 @@ const APP_URL =
   process.env.DATABASE_URL_TEST ??
   'postgresql://dukaano_app:dukaano_dev_only@localhost:5433/dukaano_test?schema=public'
 
+/**
+ * Convert a Prisma connection string into one libpq accepts.
+ *
+ * `?schema=public` is Prisma's own parameter and psql rejects it outright with
+ * `invalid URI query parameter: "schema"`. The previous harness never noticed, because a failing
+ * psql call fell back to `docker exec` — so the bad URL was masked locally and the whole suite
+ * collapsed in CI, where there is no such container. Stripping it here keeps one connection string
+ * in the environment for both tools.
+ */
+function libpqUrl(url: string): string {
+  return url.replace(/[?&]schema=[^&]*/g, '').replace(/\?$/, '')
+}
+
+/**
+ * Run a statement against the test database as the **owner**, and return its output.
+ *
+ * Every test that needs to inspect or set up raw state goes through here.
+ *
+ * It talks to `psql` over `DATABASE_ADMIN_URL_TEST` rather than shelling out to
+ * `docker exec dukaano-postgres`, which is what the first version did. That version worked on
+ * exactly one machine: it hardcoded a local container name, so the whole integration suite failed
+ * in CI — where Postgres is a service container with a different name — and would fail for any
+ * developer whose container was named differently. A connection string is the thing both
+ * environments genuinely share.
+ *
+ * As the owner, deliberately: setup and assertions need to see across tenants and to write state
+ * the application role is not permitted to write. The application itself connects as
+ * `dukaano_app` and is RLS-constrained, which is what the tests are checking.
+ */
+export function sql(statement: string): string {
+  return execSync(`psql "${libpqUrl(ADMIN_URL)}" -v ON_ERROR_STOP=1 -qtAc ${JSON.stringify(statement)}`, {
+    stdio: 'pipe',
+    shell: '/bin/bash',
+  })
+    .toString()
+    .trim()
+}
+
+/** The same, parsed as a number. Empty output (no rows) reads as 0. */
+export function sqlNumber(statement: string): number {
+  return Number(sql(statement) || '0')
+}
+
+/**
+ * Run a statement as the **application role** — RLS-constrained, exactly as the API connects.
+ *
+ * Distinct from `sql` on purpose. A test that wants to prove the application role *cannot* do
+ * something has to actually be that role; running it as the owner would prove nothing, and
+ * collapsing the two helpers into one would quietly turn those tests into no-ops.
+ */
+export function appSql(statement: string): string {
+  return execSync(`psql "${libpqUrl(APP_URL)}" -v ON_ERROR_STOP=1 -qtAc ${JSON.stringify(statement)}`, {
+    stdio: 'pipe',
+    shell: '/bin/bash',
+  })
+    .toString()
+    .trim()
+}
+
 /** Create the test database (if absent) and bring it to the current migration state. */
 export function prepareTestDatabase(): void {
-  const bootstrapUrl = ADMIN_URL.replace(/\/dukaano_test/, '/postgres')
-  try {
-    execSync(
-      `psql "${bootstrapUrl}" -tAc "SELECT 1 FROM pg_database WHERE datname='dukaano_test'" | grep -q 1 || psql "${bootstrapUrl}" -c "CREATE DATABASE dukaano_test"`,
-      { stdio: 'pipe', shell: '/bin/bash' },
-    )
-  } catch {
-    // psql may not be on PATH; fall back to the containerised client.
-    execSync(
-      `docker exec dukaano-postgres psql -U dukaano -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='dukaano_test'" | grep -q 1 || docker exec dukaano-postgres psql -U dukaano -d postgres -c "CREATE DATABASE dukaano_test"`,
-      { stdio: 'pipe', shell: '/bin/bash' },
-    )
-  }
+  const bootstrapUrl = libpqUrl(ADMIN_URL).replace(/\/dukaano_test/, '/postgres')
+  execSync(
+    `psql "${bootstrapUrl}" -tAc "SELECT 1 FROM pg_database WHERE datname='dukaano_test'" | grep -q 1 || psql "${bootstrapUrl}" -c "CREATE DATABASE dukaano_test"`,
+    { stdio: 'pipe', shell: '/bin/bash' },
+  )
 
   execSync('pnpm exec prisma migrate deploy', {
     stdio: 'pipe',
@@ -120,11 +171,7 @@ export async function createTestApp(): Promise<INestApplication> {
 
 /** Remove all tenant data between tests, as the owner so RLS does not hide anything. */
 export function truncateAll(): void {
-  execSync(
-    `docker exec dukaano-postgres psql -U dukaano -d dukaano_test -qc ` +
-      `"TRUNCATE shop, \\"user\\" CASCADE;"`,
-    { stdio: 'pipe', shell: '/bin/bash' },
-  )
+  sql('TRUNCATE shop, "user" CASCADE')
 }
 
 export interface SeededShop {

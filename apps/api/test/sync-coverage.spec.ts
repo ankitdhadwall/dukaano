@@ -1,8 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import request from 'supertest'
-import { execSync } from 'node:child_process'
 import type { INestApplication } from '@nestjs/common'
-import { createTestApp, nextPhone, prepareTestDatabase, truncateAll } from './harness'
+import { appSql, createTestApp, nextPhone, prepareTestDatabase, sql, truncateAll } from './harness'
 
 /**
  * Two structural gates that fail the build rather than leaking quietly in production.
@@ -17,13 +16,6 @@ describe('structural gates', () => {
   const auth = () => ({ Authorization: `Bearer ${token}` })
   const server = () => app.getHttpServer()
 
-  const sql = (statement: string) =>
-    execSync(
-      `docker exec dukaano-postgres psql -U dukaano -d dukaano_test -qtAc ${JSON.stringify(statement)}`,
-      { stdio: 'pipe', shell: '/bin/bash' },
-    )
-      .toString()
-      .trim()
 
   const changeCount = () =>
     Number(sql(`SELECT count(*) FROM change_log WHERE shop_id = '${shopId}'`))
@@ -230,15 +222,11 @@ describe('structural gates', () => {
       // insert a change_log row for a different shop. WITH CHECK is the only thing stopping it.
       const foreignShopId = '00000000-0000-4000-8000-00000000beef'
       const attempt = () =>
-        execSync(
-          `docker exec dukaano-postgres psql -U dukaano_app -d dukaano_test -qtAc ` +
-            JSON.stringify(
-              `BEGIN; SELECT set_config('app.shop_id', '${shopId}', true); ` +
-                `INSERT INTO change_log (shop_id, entity, entity_id, op, row_version) ` +
-                `VALUES ('${foreignShopId}', 'product', '${foreignShopId}', 'upsert', 1); COMMIT;`,
-            ),
-          { stdio: 'pipe', shell: '/bin/bash' },
-        ).toString()
+        appSql(
+          `BEGIN; SELECT set_config('app.shop_id', '${shopId}', true); ` +
+            `INSERT INTO change_log (shop_id, entity, entity_id, op, row_version) ` +
+            `VALUES ('${foreignShopId}', 'product', '${foreignShopId}', 'upsert', 1); COMMIT;`,
+        )
 
       expect(attempt).toThrow(/row-level security|violates/i)
     })

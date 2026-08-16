@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import request from 'supertest'
-import { execSync, spawn } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import type { INestApplication } from '@nestjs/common'
-import { createTestApp, nextPhone, prepareTestDatabase, truncateAll } from './harness'
+import { createTestApp, nextPhone, prepareTestDatabase, sql, truncateAll } from './harness'
 
 /**
  * Phase 3 — the sync engine (blueprint §14).
@@ -43,13 +43,6 @@ describe('sync engine', () => {
     ...overrides,
   })
 
-  const sql = (statement: string) =>
-    execSync(
-      `docker exec dukaano-postgres psql -U dukaano -d dukaano_test -qtAc ${JSON.stringify(statement)}`,
-      { stdio: 'pipe', shell: '/bin/bash' },
-    )
-      .toString()
-      .trim()
 
   beforeAll(async () => {
     prepareTestDatabase()
