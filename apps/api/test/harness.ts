@@ -1,6 +1,7 @@
 import 'reflect-metadata'
 import { Test } from '@nestjs/testing'
 import type { INestApplication } from '@nestjs/common'
+import type { NestExpressApplication } from '@nestjs/platform-express'
 import { execSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 
@@ -58,6 +59,19 @@ export function prepareTestDatabase(): void {
     stdio: 'pipe',
     env: { ...process.env, DATABASE_URL: ADMIN_URL },
   })
+
+  /*
+   * Seed the platform catalogue — plans, master categories, master products.
+   *
+   * These are NOT tenant tables: they have no `shop_id`, no RLS policy, and `truncateAll()`
+   * deliberately leaves them alone. Master-catalogue adoption is what a shopkeeper's first
+   * session actually does, so testing it against an empty platform catalogue would be testing
+   * nothing. The seed upserts, so repeated runs are free.
+   */
+  execSync('pnpm exec tsx prisma/seed.ts', {
+    stdio: 'pipe',
+    env: { ...process.env, DATABASE_URL: ADMIN_URL, SEED_PLATFORM_ONLY: 'true', NODE_ENV: 'test' },
+  })
 }
 
 export async function createTestApp(): Promise<INestApplication> {
@@ -69,13 +83,24 @@ export async function createTestApp(): Promise<INestApplication> {
   // asserted at its production default in auth-tokens.spec.ts, so raising it here cannot hide a
   // regression that removes the control.
   process.env.AUTH_RATE_LIMIT_PER_MINUTE = '1000'
+  // Cron handlers still register; they just do not fire. A reconciliation sweep running mid-suite
+  // would read a database the tests are actively mutating and report phantom mismatches.
+  process.env.ENABLE_SCHEDULED_JOBS = 'false'
 
   // Dynamic, so env.ts validates AFTER the assignments above. See the note at the top of the file.
   const { AppModule } = await import('../src/app.module')
   const { DomainExceptionFilter } = await import('../src/common/errors/domain-exception.filter')
 
+  const { configureBodyParser } = await import('../src/bootstrap')
+
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile()
-  const app = moduleRef.createNestApplication()
+  // The same body-parser configuration production uses. Tests build the app from AppModule and
+  // never run main.ts, so anything configured only there would be untested — which is exactly how
+  // the 5,000-row import first failed. See src/bootstrap.ts.
+  const app = moduleRef.createNestApplication<NestExpressApplication>(undefined, {
+    bodyParser: false,
+  })
+  configureBodyParser(app)
   app.useGlobalFilters(new DomainExceptionFilter())
   await app.init()
 

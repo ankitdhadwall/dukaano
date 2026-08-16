@@ -5,7 +5,7 @@ import { Observable, from } from 'rxjs'
 import { firstValueFrom } from 'rxjs'
 import { PrismaService } from '../prisma/prisma.service'
 import { runWithContext } from '../prisma/tenant-context'
-import { SKIP_TENANT_KEY } from '../decorators'
+import { SKIP_TENANT_KEY, TRANSACTION_TIMEOUT_KEY } from '../decorators'
 import type { AuthenticatedRequest } from '../guards/types'
 
 /**
@@ -59,10 +59,17 @@ export class TenantTransactionInterceptor implements NestInterceptor {
       )
     }
 
+    // A route may ask for a longer budget with @LongTransaction — bulk import is the only one so
+    // far. Everything else keeps the tight default that protects the counter during a rush.
+    const timeoutMs = this.reflector.getAllAndOverride<number>(TRANSACTION_TIMEOUT_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ])
+
     return from(
       this.prisma.runAsTenant({ ...base, shopId: principal.shopId }, () =>
         firstValueFrom(next.handle() as Observable<unknown>),
-      ),
+      { timeoutMs }),
     )
   }
 }

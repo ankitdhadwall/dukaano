@@ -20,7 +20,13 @@ import { enumerateRoutes } from './route-table'
  */
 describe('tenant isolation', () => {
   let app: INestApplication
-  type Shop = { token: string; shopId: string; membershipId: string; productId: string }
+  type Shop = {
+    token: string
+    shopId: string
+    membershipId: string
+    productId: string
+    categoryId: string
+  }
   let shopA: Shop
   let shopB: Shop
 
@@ -52,11 +58,18 @@ describe('tenant isolation', () => {
       })
       .expect(201)
 
+    const category = await request(app.getHttpServer())
+      .post('/v1/categories')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ nameEn: `${shopName} Staples` })
+      .expect(201)
+
     return {
       token,
       shopId,
       membershipId: me.body.data.membershipId as string,
       productId: product.body.data.id as string,
+      categoryId: category.body.data.id as string,
     }
   }
 
@@ -146,6 +159,22 @@ describe('tenant isolation', () => {
       method: 'get',
       path: (victim) => `/v1/inventory/products/${victim.productId}`,
     },
+    {
+      name: 'GET /v1/categories/:id with the victim category id',
+      method: 'get',
+      path: (victim) => `/v1/categories/${victim.categoryId}`,
+    },
+    {
+      name: 'PATCH /v1/categories/:id — renaming another shop’s category',
+      method: 'patch',
+      path: (victim) => `/v1/categories/${victim.categoryId}`,
+      body: { nameEn: 'Renamed by an intruder' },
+    },
+    {
+      name: 'DELETE /v1/categories/:id — archiving another shop’s category',
+      method: 'delete',
+      path: (victim) => `/v1/categories/${victim.categoryId}`,
+    },
   ]
 
   describe.each(attacks)('$name', ({ method, path, body }) => {
@@ -202,6 +231,22 @@ describe('tenant isolation', () => {
     expect(survived.body.data.archivedAt).toBeNull()
   })
 
+  it('leaves the victim’s category untouched after a cross-tenant rename attempt', async () => {
+    await request(app.getHttpServer())
+      .patch(`/v1/categories/${shopB.categoryId}`)
+      .set('Authorization', `Bearer ${shopA.token}`)
+      .send({ nameEn: 'Renamed by an intruder' })
+      .expect(404)
+
+    const survived = await request(app.getHttpServer())
+      .get(`/v1/categories/${shopB.categoryId}`)
+      .set('Authorization', `Bearer ${shopB.token}`)
+      .expect(200)
+
+    expect(survived.body.data.nameEn).toBe('Gupta Kirana Staples')
+    expect(survived.body.data.archivedAt).toBeNull()
+  })
+
   it('rejects a token whose shop claim was swapped for another shop', async () => {
     // A forged claim cannot help: the guard re-reads the membership from the database, and no
     // membership links Shop A's user to Shop B.
@@ -231,14 +276,20 @@ describe('tenant isolation', () => {
       .filter((route) => route.path.includes(':'))
       .map((route) => `${route.method} ${route.path}`)
 
+    // Turn a concrete attack URL back into its route template by replacing any UUID with `:id`,
+    // rather than naming each id field. Listing them individually meant that adding a new kind of
+    // resource silently produced an untemplated URL, which never matched, so the gate reported a
+    // route as uncovered even after an attack for it had been written — the failure pointed at
+    // the wrong thing entirely.
+    const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi
+
     const covered = new Set(
       attacks.map((a) => {
         const templated = a
           .path(shopB)
-          .replace(shopB.shopId, ':id')
-          .replace(shopB.membershipId, ':id')
+          // The one route whose parameter is not named `:id`.
           .replace(`/inventory/products/${shopB.productId}`, '/inventory/products/:productId')
-          .replace(shopB.productId, ':id')
+          .replace(UUID, ':id')
         return `${a.method.toUpperCase()} ${templated}`
       }),
     )

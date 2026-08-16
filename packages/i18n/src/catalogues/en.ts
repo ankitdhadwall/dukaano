@@ -123,6 +123,30 @@ export const en = {
   'errors.inventory.insufficient': 'Only {{available}} left in stock.',
   'errors.sync.permission': 'Your permissions changed while you were offline, so this change was not saved.',
 
+  'errors.category.nameRequired': 'Enter the category name.',
+  'errors.category.nameTooLong': 'That category name is too long.',
+  'errors.category.duplicate': 'A category called {{name}} already exists.',
+
+  // --- errors: bulk import -------------------------------------------------------------------
+  'errors.import.fileRequired': 'Choose a file to import.',
+  'errors.import.fileEmpty': 'That file has no rows in it.',
+  'errors.import.fileTooLarge': 'That file is too large. Split it and import in parts.',
+  'errors.import.parseFailed': 'The file could not be read at line {{line}}. Check for a missing quotation mark.',
+  'errors.import.tooManyRows': 'That file has {{received}} rows. Import at most {{max}} at a time.',
+  'errors.import.noRows': 'There is nothing to import.',
+  'errors.import.nameColumnRequired': 'Choose which column holds the product name.',
+  'errors.import.priceColumnRequired': 'Choose which column holds the selling price.',
+  'errors.import.priceRequired': 'This row has no selling price.',
+  'errors.import.unitRequired': 'This row has no unit. Choose a unit for the whole file, or add a unit column.',
+  'errors.import.duplicateInFile': 'This code is used twice in the same file. Keep one row and remove the other.',
+  'errors.import.duplicateInRequest': 'The same item appears more than once.',
+  'errors.import.masterProductNotFound': '{{count}} of these items are no longer available.',
+
+  // Amber, not red: the row will import exactly as written, but it looks like a slip.
+  'warnings.import.sellingBelowCost': 'The selling price is below the purchase price.',
+  'warnings.import.sellingAboveMrp': 'The selling price is above the MRP.',
+  'warnings.import.stockWithoutCost': 'Stock with no purchase price will show a value of zero until you record a purchase.',
+
   // --- notifications -------------------------------------------------------------------------
   'notification.lowStock.title': 'Running low',
   'notification.lowStock.body': '{{count}} products are running low.',

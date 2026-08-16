@@ -506,12 +506,20 @@ async function seedDemoShop(planId: string, masterProductIds: Map<string, string
 
 async function main(): Promise<void> {
   const isProduction = process.env.NODE_ENV === 'production'
+  // Plans and the master catalogue with no demo shop. Used by the integration harness, which
+  // needs the platform catalogue present but truncates all tenant data between tests.
+  const platformOnly = process.env.SEED_PLATFORM_ONLY === 'true'
 
   console.warn('\nSeeding Dukaano\n')
 
   console.warn('Platform data (all environments):')
   const basicPlanId = await seedPlans()
   const masterProductIds = await seedMasterCatalogue()
+
+  if (platformOnly) {
+    console.warn('\nSEED_PLATFORM_ONLY — stopping after platform data.\n')
+    return
+  }
 
   if (isProduction) {
     // The demo shop contains a known password. Creating it in production would be a live

@@ -51,6 +51,15 @@ export const env = cleanEnv(process.env, {
    * owner. Never set in staging or production; the boot assertion logs loudly when it is on.
    */
   ALLOW_INSECURE_DB_ROLE: bool({ default: false }),
+
+  /**
+   * Whether cron jobs run in this process.
+   *
+   * Off in tests, so a sweep does not fire mid-suite against a database the tests are mutating.
+   * Off on any replica that is not the designated scheduler once the API runs on more than one
+   * instance — otherwise every instance reconciles every shop, N times a night, for nothing.
+   */
+  ENABLE_SCHEDULED_JOBS: bool({ default: true }),
 })
 
 export type Env = typeof env

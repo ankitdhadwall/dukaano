@@ -15,6 +15,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@dukaano/business-logic": "workspace:*",
     "@dukaano/money": "workspace:*",
     "@dukaano/types": "workspace:*",
     "zod": "^3.24.1"

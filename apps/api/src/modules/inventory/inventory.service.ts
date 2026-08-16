@@ -192,6 +192,74 @@ export class InventoryService {
   }
 
   /**
+   * Opening stock for products created earlier in **this same transaction**.
+   *
+   * The bulk-import path only. `applyMovement` costs four round-trips per product — a lock, a
+   * transaction insert, a balance update, a product read — which at 5,000 rows is 20,000
+   * round-trips and several minutes. This does the same work in three statements.
+   *
+   * **Why skipping the `FOR UPDATE` lock is safe here, and only here.** The lock exists to
+   * serialize concurrent movements on a balance another session might also be changing. These
+   * products were INSERTed by the caller inside the current, uncommitted transaction, so no other
+   * session can see the product row at all, let alone reach its balance. There is nothing to
+   * contend with. Passing an id that was *not* created in this transaction would break that
+   * argument, which is why this method is private to the service and the import path asserts the
+   * ids it passes are ones it just created.
+   *
+   * Everything the append-only design guarantees still holds: one `inventory_transaction` row per
+   * product, carrying its own `balance_after`, so reconciliation checks this path exactly as it
+   * checks every other.
+   */
+  async applyOpeningStockBatch(
+    entries: readonly {
+      productId: string
+      qtyMilli: number
+      unitCostPaise?: number
+    }[],
+  ): Promise<number> {
+    const positive = entries.filter((entry) => entry.qtyMilli > 0)
+    if (positive.length === 0) return 0
+
+    const tx = tenantClient()
+    const context = currentContext()
+    const shopId = context?.shopId
+    if (!shopId) throw new Error('applyOpeningStockBatch requires a tenant context')
+
+    const now = new Date()
+
+    await tx.inventoryTransaction.createMany({
+      data: positive.map((entry) => ({
+        id: randomUUID(),
+        shopId,
+        productId: entry.productId,
+        type: 'OPENING_STOCK' as const,
+        qtyDeltaMilli: BigInt(entry.qtyMilli),
+        // Opening stock starts from zero by definition — these products did not exist a moment
+        // ago — so the resulting balance is the movement itself.
+        balanceAfterMilli: BigInt(entry.qtyMilli),
+        unitCostPaise: entry.unitCostPaise !== undefined ? BigInt(entry.unitCostPaise) : null,
+        actorUserId: context?.userId ?? null,
+        deviceId: context?.deviceId ?? null,
+        occurredAt: now,
+      })),
+    })
+
+    await tx.inventoryBalance.createMany({
+      data: positive.map((entry) => ({
+        shopId,
+        productId: entry.productId,
+        qtyMilli: BigInt(entry.qtyMilli),
+        // First receipt with no prior stock: the moving average is simply the incoming cost,
+        // which is what applyInboundCost returns for an empty state.
+        avgCostPaise: BigInt(entry.unitCostPaise ?? 0),
+        version: 1n,
+      })),
+    })
+
+    return positive.length
+  }
+
+  /**
    * Lock the balance row, creating it if this product has never moved.
    *
    * `SELECT … FOR UPDATE` serializes concurrent movements on the same product, which is what
@@ -237,10 +305,27 @@ export class InventoryService {
   async getProductStock(shopId: string, productId: string, historyLimit = 50) {
     const tx = tenantClient()
 
-    const balance = await tx.inventoryBalance.findUnique({
-      where: { shopId_productId: { shopId, productId } },
+    /*
+     * A product with no balance row has never moved, and its stock is **zero, not missing**.
+     *
+     * The balance row is created lazily by the first movement, so a product created without
+     * opening stock has none. Returning 404 for it conflates "no such product" with "this
+     * product has never been stocked" — the first is an error, the second is the normal state of
+     * every newly created product, and a stock screen that 404s on a product the shopkeeper is
+     * looking at reads as data loss.
+     *
+     * The 404 is still correct for a product that genuinely does not exist, or belongs to
+     * another shop — which the existence check below preserves.
+     */
+    const product = await tx.product.findFirst({
+      where: { id: productId, shopId },
+      select: { id: true },
     })
-    if (!balance) throw new NotFoundError('InventoryBalance', productId)
+    if (!product) throw new NotFoundError('Product', productId)
+
+    const balance = (await tx.inventoryBalance.findUnique({
+      where: { shopId_productId: { shopId, productId } },
+    })) ?? { qtyMilli: 0n, avgCostPaise: 0n }
 
     const history = await tx.inventoryTransaction.findMany({
       where: { shopId, productId },

@@ -1,6 +1,18 @@
-import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common'
+import { CallHandler, ExecutionContext, Injectable, NestInterceptor, SetMetadata } from '@nestjs/common'
+import { Reflector } from '@nestjs/core'
 import { Observable, map } from 'rxjs'
 import { currentContext } from '../prisma/tenant-context'
+
+export const RAW_RESPONSE_KEY = 'dukaano:rawResponse'
+
+/**
+ * Return the handler's value as-is, with no `{ data, meta }` envelope.
+ *
+ * For file downloads only — the CSV template and the failed-row export. A browser saving a `.csv`
+ * must receive CSV bytes, not JSON with CSV inside a string field. Marked explicitly per route so
+ * the envelope stays the default and an unenveloped response is always a deliberate choice.
+ */
+export const RawResponse = () => SetMetadata(RAW_RESPONSE_KEY, true)
 
 /**
  * Wraps every success response as `{ data, meta }` (blueprint §21).
@@ -13,7 +25,15 @@ import { currentContext } from '../prisma/tenant-context'
  */
 @Injectable()
 export class ResponseEnvelopeInterceptor implements NestInterceptor {
-  intercept(_context: ExecutionContext, next: CallHandler): Observable<unknown> {
+  constructor(private readonly reflector: Reflector) {}
+
+  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
+    const raw = this.reflector.getAllAndOverride<boolean>(RAW_RESPONSE_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ])
+    if (raw) return next.handle()
+
     return next.handle().pipe(
       map((data) => ({
         data: serializeBigInts(data),

@@ -94,3 +94,54 @@ export type StockAdjustmentInput = z.infer<typeof stockAdjustmentSchema>
 export const inventoryTransactionTypeSchema = z.enum(
   INVENTORY_TRANSACTION_TYPE_LIST as unknown as [string, ...string[]],
 )
+
+/**
+ * Categories.
+ *
+ * Same bilingual rule as products: at least one language, and we never auto-translate the other.
+ * A category is organisational only — nothing financial depends on it — which is why it may be
+ * renamed freely and why archiving one does not touch the products inside it.
+ */
+export const createCategorySchema = z
+  .object({
+    nameEn: z.string().trim().max(80, 'errors.category.nameTooLong').optional(),
+    nameHi: z.string().trim().max(80, 'errors.category.nameTooLong').optional(),
+    sortOrder: z.number().int().min(0).max(9999).optional(),
+  })
+  .refine((v) => Boolean(v.nameEn?.trim()) || Boolean(v.nameHi?.trim()), {
+    message: 'errors.category.nameRequired',
+    path: ['nameEn'],
+  })
+export type CreateCategoryInput = z.infer<typeof createCategorySchema>
+
+export const updateCategorySchema = z.object({
+  nameEn: z.string().trim().max(80, 'errors.category.nameTooLong').optional(),
+  nameHi: z.string().trim().max(80, 'errors.category.nameTooLong').optional(),
+  sortOrder: z.number().int().min(0).max(9999).optional(),
+})
+export type UpdateCategoryInput = z.infer<typeof updateCategorySchema>
+
+/**
+ * Adopting products from the platform master catalogue (blueprint §7, risk R-1).
+ *
+ * Prices are supplied per item by the shopkeeper, never copied from the master row. The master
+ * `hintPricePaise` is a starting suggestion the UI may pre-fill, but it must cross the wire as an
+ * explicit choice — a shop in Shimla and a shop in Solan do not charge the same for atta, and
+ * silently adopting a platform price would put a number on their shelf that they never agreed to.
+ */
+export const adoptMasterProductsSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        masterProductId: z.string().uuid('errors.product.invalidId'),
+        sellingPricePaise: paise('price'),
+        purchasePricePaise: paise('price').optional(),
+        mrpPaise: paise('price').optional(),
+        openingStockMilli: milli.min(0).optional(),
+        lowStockThresholdMilli: milli.min(0).optional(),
+      }),
+    )
+    .min(1, 'errors.import.noRows')
+    .max(200, 'errors.import.tooManyRows'),
+})
+export type AdoptMasterProductsInput = z.infer<typeof adoptMasterProductsSchema>

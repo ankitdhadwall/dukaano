@@ -129,6 +129,30 @@ export const hi = {
   'errors.inventory.insufficient': 'स्टॉक में सिर्फ़ {{available}} बचा है।',
   'errors.sync.permission': 'आप ऑफलाइन थे तब आपकी अनुमति बदल गई थी, इसलिए यह बदलाव सेव नहीं हुआ।',
 
+  'errors.category.nameRequired': 'कैटेगरी का नाम डालें।',
+  'errors.category.nameTooLong': 'कैटेगरी का नाम बहुत लंबा है।',
+  'errors.category.duplicate': '{{name}} नाम की कैटेगरी पहले से है।',
+
+  // --- errors: bulk import -------------------------------------------------------------------
+  'errors.import.fileRequired': 'इम्पोर्ट करने के लिए फ़ाइल चुनें।',
+  'errors.import.fileEmpty': 'इस फ़ाइल में कोई लाइन नहीं है।',
+  'errors.import.fileTooLarge': 'फ़ाइल बहुत बड़ी है। इसे बांटकर हिस्सों में इम्पोर्ट करें।',
+  'errors.import.parseFailed': 'लाइन {{line}} पर फ़ाइल पढ़ी नहीं जा सकी। कहीं कोई कोट (") छूट तो नहीं गया?',
+  'errors.import.tooManyRows': 'इस फ़ाइल में {{received}} लाइनें हैं। एक बार में ज़्यादा से ज़्यादा {{max}} इम्पोर्ट करें।',
+  'errors.import.noRows': 'इम्पोर्ट करने के लिए कुछ नहीं है।',
+  'errors.import.nameColumnRequired': 'बताएं कि प्रोडक्ट का नाम किस कॉलम में है।',
+  'errors.import.priceColumnRequired': 'बताएं कि बेचने का दाम किस कॉलम में है।',
+  'errors.import.priceRequired': 'इस लाइन में बेचने का दाम नहीं है।',
+  'errors.import.unitRequired': 'इस लाइन में यूनिट नहीं है। पूरी फ़ाइल के लिए एक यूनिट चुनें, या यूनिट का कॉलम जोड़ें।',
+  'errors.import.duplicateInFile': 'यह कोड एक ही फ़ाइल में दो बार है। एक लाइन रखें, दूसरी हटाएं।',
+  'errors.import.duplicateInRequest': 'यही चीज़ एक से ज़्यादा बार आई है।',
+  'errors.import.masterProductNotFound': 'इनमें से {{count}} चीज़ें अब उपलब्ध नहीं हैं।',
+
+  // पीला, लाल नहीं: लाइन जैसी लिखी है वैसी ही इम्पोर्ट होगी, पर लगता है कुछ गलती हुई है।
+  'warnings.import.sellingBelowCost': 'बेचने का दाम खरीद के दाम से कम है।',
+  'warnings.import.sellingAboveMrp': 'बेचने का दाम एमआरपी से ज़्यादा है।',
+  'warnings.import.stockWithoutCost': 'खरीद का दाम डाले बिना स्टॉक की कीमत शून्य दिखेगी, जब तक कोई खरीद दर्ज न हो।',
+
   // --- notifications -------------------------------------------------------------------------
   'notification.lowStock.title': 'स्टॉक कम है',
   'notification.lowStock.body': '{{count}} चीज़ें खत्म होने वाली हैं।',

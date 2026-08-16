@@ -47,7 +47,26 @@ export {
   updateProductSchema,
   stockAdjustmentSchema,
   inventoryTransactionTypeSchema,
+  createCategorySchema,
+  updateCategorySchema,
+  adoptMasterProductsSchema,
   type CreateProductInput,
   type UpdateProductInput,
   type StockAdjustmentInput,
+  type CreateCategoryInput,
+  type UpdateCategoryInput,
+  type AdoptMasterProductsInput,
 } from './schemas/catalogue'
+
+export {
+  MAX_IMPORT_ROWS,
+  MAX_IMPORT_CHARS,
+  columnMappingSchema,
+  duplicateActionSchema,
+  importPreviewSchema,
+  importCommitSchema,
+  type ColumnMappingInput,
+  type DuplicateAction,
+  type ImportPreviewInput,
+  type ImportCommitInput,
+} from './schemas/import'

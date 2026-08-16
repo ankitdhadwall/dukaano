@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common'
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, DiscoveryModule } from '@nestjs/core'
+import { ScheduleModule } from '@nestjs/schedule'
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler'
 import { CommonModule } from './common/common.module'
 import { AuthModule } from './modules/auth/auth.module'
@@ -35,6 +36,9 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor'
     // stable across framework upgrades.
     DiscoveryModule,
     ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 300 }]),
+    // Registers cron handlers. Whether they actually fire is gated per job on
+    // ENABLE_SCHEDULED_JOBS, so tests build the full module without a sweep running mid-suite.
+    ScheduleModule.forRoot(),
     CommonModule,
     AuthModule,
     ShopsModule,

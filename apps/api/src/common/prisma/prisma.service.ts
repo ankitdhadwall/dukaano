@@ -104,6 +104,7 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
   async runAsTenant<T>(
     context: Omit<RequestContext, 'tx'> & { shopId: string },
     fn: () => Promise<T>,
+    options: { timeoutMs?: number } = {},
   ): Promise<T> {
     return this.client.$transaction(
       async (tx) => {
@@ -113,7 +114,8 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
       {
         // Generous enough for a multi-line sale with per-product row locks; short enough that a
         // stuck request releases its locks rather than blocking the counter during a rush.
-        timeout: 15_000,
+        // Bulk routes opt out explicitly with @LongTransaction — never globally.
+        timeout: options.timeoutMs ?? 15_000,
         maxWait: 5_000,
       },
     )

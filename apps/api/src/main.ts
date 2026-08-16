@@ -1,14 +1,21 @@
 import 'reflect-metadata'
 import { Logger } from '@nestjs/common'
 import { NestFactory } from '@nestjs/core'
+import type { NestExpressApplication } from '@nestjs/platform-express'
 import helmet from 'helmet'
 import { AppModule } from './app.module'
+import { configureBodyParser } from './bootstrap'
 import { assertSecretsAreStrong, corsOrigins, env } from './config/env'
 
 async function bootstrap(): Promise<void> {
   assertSecretsAreStrong(env)
 
-  const app = await NestFactory.create(AppModule, { bufferLogs: false })
+  // bodyParser: false so configureBodyParser can install one with our limit — see bootstrap.ts.
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bufferLogs: false,
+    bodyParser: false,
+  })
+  configureBodyParser(app)
 
   app.use(helmet())
   app.enableCors({ origin: corsOrigins(env), credentials: true })

@@ -40,3 +40,29 @@ export {
   type CostingState,
   type InboundMovement,
 } from './inventory/costing'
+
+export {
+  parseCsv,
+  toCsv,
+  toCsvValue,
+  detectColumnMapping,
+  CsvParseError,
+  IMPORT_COLUMNS,
+  IMPORT_COLUMN_KEYS,
+  TEMPLATE_COLUMNS,
+  type CsvDocument,
+  type CsvRow,
+  type ColumnMapping,
+  type ImportColumn,
+} from './import/csv'
+
+export {
+  normalizeRow,
+  resolveUnitCode,
+  splitAliases,
+  findInFileDuplicates,
+  type ProductDraft,
+  type RowIssue,
+  type NormalizedRow,
+  type NormalizeOptions,
+} from './import/rows'

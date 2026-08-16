@@ -16,6 +16,7 @@ export const PERMISSIONS_KEY = 'dukaano:permissions'
 export const ENTITLEMENTS_KEY = 'dukaano:entitlements'
 export const SKIP_TENANT_KEY = 'dukaano:skipTenant'
 export const AUDIT_KEY = 'dukaano:audit'
+export const TRANSACTION_TIMEOUT_KEY = 'dukaano:transactionTimeout'
 
 /** No authentication. Reserved for login, registration and health. */
 export const Public = () => SetMetadata(PUBLIC_KEY, true)
@@ -47,6 +48,20 @@ export const SkipTenant = () => SetMetadata(SKIP_TENANT_KEY, true)
 /** Record an audit entry for this route (blueprint §28). */
 export const Audit = (action: string, entityType: string) =>
   SetMetadata(AUDIT_KEY, { action, entityType })
+
+/**
+ * Give this route a longer transaction budget than the 15 s default.
+ *
+ * The default is sized for a counter sale, where a request still holding row locks after fifteen
+ * seconds is stuck and should be killed rather than left blocking the till during a rush. Bulk
+ * operations legitimately take longer, and timing one out mid-write rolls back work the
+ * shopkeeper stood and waited for.
+ *
+ * Marked per route rather than raised globally, so the tight default keeps protecting the
+ * hundreds of routes that should never need it, and every exception is visible in review.
+ */
+export const LongTransaction = (milliseconds: number) =>
+  SetMetadata(TRANSACTION_TIMEOUT_KEY, milliseconds)
 
 /** The authenticated principal: user, shop, role and effective permissions. */
 export const CurrentUser = createParamDecorator(
