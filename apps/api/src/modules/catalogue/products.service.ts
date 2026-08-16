@@ -3,18 +3,36 @@ import { randomUUID } from 'node:crypto'
 import { UNIT_DEFINITIONS, type UnitCode } from '@dukaano/types'
 import { ConflictError, NotFoundError, BusinessRuleError } from '../../common/errors/domain-error'
 import { currentContext, tenantClient } from '../../common/prisma/tenant-context'
+import { ChangeLogService } from '../sync/change-log.service'
 import { InventoryService } from '../inventory/inventory.service'
 
 export interface CreateProductInput {
-  nameEn?: string
-  nameHi?: string
-  sku?: string
-  shortCode?: string
-  categoryId?: string
+  /**
+   * Client-generated id (UUIDv7, §14.3).
+   *
+   * Supplied only by the sync push path, where the row already exists on a device and its id is
+   * part of the fact being reported. Time-ordered so SQLite B-tree inserts on the phone stay
+   * sequential, and it is what makes a create whose response was lost replay as a no-op rather
+   * than a second product.
+   */
+  id?: string
+  /** The client's edit time, used for last-write-wins on later conflicting edits (§14.7). */
+  clientUpdatedAt?: Date
+  /**
+   * `null` clears the field; `undefined` leaves it untouched.
+   *
+   * The distinction matters on the sync path: a client that cleared a product's SKU offline sends
+   * `null`, and collapsing that to `undefined` would silently discard the edit.
+   */
+  nameEn?: string | null
+  nameHi?: string | null
+  sku?: string | null
+  shortCode?: string | null
+  categoryId?: string | null
   unitCode: UnitCode
   sellingPricePaise: number
-  purchasePricePaise?: number
-  mrpPaise?: number
+  purchasePricePaise?: number | null
+  mrpPaise?: number | null
   lowStockThresholdMilli?: number
   openingStockMilli?: number
   aliases?: string[]
@@ -34,7 +52,10 @@ export interface ProductSearchResult {
 
 @Injectable()
 export class ProductsService {
-  constructor(private readonly inventory: InventoryService) {}
+  constructor(
+    private readonly inventory: InventoryService,
+    private readonly changeLog: ChangeLogService,
+  ) {}
 
   /**
    * Billing search — the single most performance-sensitive query in Dukaano.
@@ -156,13 +177,14 @@ export class ProductsService {
     await this.assertCodesAreFree(shopId, input.sku, input.shortCode)
 
     const tx = tenantClient()
-    const productId = randomUUID()
+    const productId = input.id ?? randomUUID()
     const userId = currentContext()?.userId ?? null
 
     await tx.product.create({
       data: {
         id: productId,
         shopId,
+        clientUpdatedAt: input.clientUpdatedAt ?? null,
         nameEn: input.nameEn?.trim() || null,
         nameHi: input.nameHi?.trim() || null,
         sku: input.sku?.trim() || null,
@@ -171,8 +193,8 @@ export class ProductsService {
         unitCode: input.unitCode,
         sellingPricePaise: BigInt(input.sellingPricePaise),
         purchasePricePaise:
-          input.purchasePricePaise !== undefined ? BigInt(input.purchasePricePaise) : null,
-        mrpPaise: input.mrpPaise !== undefined ? BigInt(input.mrpPaise) : null,
+          input.purchasePricePaise != null ? BigInt(input.purchasePricePaise) : null,
+        mrpPaise: input.mrpPaise != null ? BigInt(input.mrpPaise) : null,
         lowStockThresholdMilli: BigInt(input.lowStockThresholdMilli ?? 0),
         createdByUserId: userId,
         updatedByUserId: userId,
@@ -192,9 +214,15 @@ export class ProductsService {
         productId,
         type: 'OPENING_STOCK',
         qtyDeltaMilli: input.openingStockMilli,
-        unitCostPaise: input.purchasePricePaise,
+        // An explicit null means "no purchase price"; the movement simply carries no cost, which
+        // is the same as omitting it. Only a real number moves the average.
+        unitCostPaise: input.purchasePricePaise ?? undefined,
       })
     }
+
+    // Same transaction as the write above, so a product cannot exist without being replicable
+    // (§14.5). Aliases ride on the product's own change: a device applies them together.
+    await this.changeLog.record({ entity: 'product', entityId: productId, op: 'upsert', rowVersion: 1 })
 
     return this.findById(shopId, productId)
   }
@@ -205,7 +233,11 @@ export class ProductsService {
    * A price change here never touches historical sales: `sale_item` holds a snapshot of the
    * price the customer was quoted (§25 E-4, E-10). Editing a price is a forward-looking act.
    */
-  async update(shopId: string, id: string, input: Partial<CreateProductInput>) {
+  async update(
+    shopId: string,
+    id: string,
+    input: Partial<CreateProductInput>,
+  ): Promise<Awaited<ReturnType<ProductsService['findById']>>> {
     const existing = await tenantClient().product.findFirst({
       where: { id, shopId },
       select: { id: true, sku: true, shortCode: true, unitCode: true },
@@ -237,26 +269,37 @@ export class ProductsService {
       }
     }
 
-    await tenantClient().product.update({
+    const updated = await tenantClient().product.update({
       where: { id },
+      select: { rowVersion: true },
       data: {
-        nameEn: input.nameEn !== undefined ? input.nameEn.trim() || null : undefined,
-        nameHi: input.nameHi !== undefined ? input.nameHi.trim() || null : undefined,
-        sku: input.sku !== undefined ? input.sku.trim() || null : undefined,
-        shortCode: input.shortCode !== undefined ? input.shortCode.trim() || null : undefined,
+        clientUpdatedAt: input.clientUpdatedAt ?? undefined,
+        nameEn: input.nameEn !== undefined ? input.nameEn?.trim() || null : undefined,
+        nameHi: input.nameHi !== undefined ? input.nameHi?.trim() || null : undefined,
+        sku: input.sku !== undefined ? input.sku?.trim() || null : undefined,
+        shortCode: input.shortCode !== undefined ? input.shortCode?.trim() || null : undefined,
         categoryId: input.categoryId ?? undefined,
         unitCode: input.unitCode ?? undefined,
         sellingPricePaise:
           input.sellingPricePaise !== undefined ? BigInt(input.sellingPricePaise) : undefined,
         purchasePricePaise:
-          input.purchasePricePaise !== undefined ? BigInt(input.purchasePricePaise) : undefined,
-        lowStockThresholdMilli:
-          input.lowStockThresholdMilli !== undefined
-            ? BigInt(input.lowStockThresholdMilli)
+          input.purchasePricePaise !== undefined
+            ? input.purchasePricePaise === null
+              ? null
+              : BigInt(input.purchasePricePaise)
             : undefined,
+        lowStockThresholdMilli:
+          input.lowStockThresholdMilli != null ? BigInt(input.lowStockThresholdMilli) : undefined,
         updatedByUserId: currentContext()?.userId ?? null,
         rowVersion: { increment: 1n },
       },
+    })
+
+    await this.changeLog.record({
+      entity: 'product',
+      entityId: id,
+      op: 'upsert',
+      rowVersion: updated.rowVersion,
     })
 
     return this.findById(shopId, id)
@@ -276,11 +319,22 @@ export class ProductsService {
     })
     if (!product) throw new NotFoundError('Product', id)
 
-    return tenantClient().product.update({
+    const archived = await tenantClient().product.update({
       where: { id },
       data: { archivedAt: new Date(), isActive: false, rowVersion: { increment: 1n } },
-      select: { id: true, archivedAt: true },
+      select: { id: true, archivedAt: true, rowVersion: true },
     })
+
+    // `archive`, not `upsert`: the client removes it from the picker rather than upserting a row
+    // it will then have to notice is inactive.
+    await this.changeLog.record({
+      entity: 'product',
+      entityId: id,
+      op: 'archive',
+      rowVersion: archived.rowVersion,
+    })
+
+    return { id: archived.id, archivedAt: archived.archivedAt }
   }
 
   /**
@@ -291,8 +345,8 @@ export class ProductsService {
    */
   private async assertCodesAreFree(
     shopId: string,
-    sku?: string,
-    shortCode?: string,
+    sku?: string | null,
+    shortCode?: string | null,
     excludeId?: string,
   ): Promise<void> {
     const checks: { field: 'sku' | 'shortCode'; value: string }[] = []

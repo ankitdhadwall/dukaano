@@ -18,6 +18,7 @@ import { UNIT_CODES } from '@dukaano/types'
 import { BusinessRuleError } from '../../common/errors/domain-error'
 import { currentContext, tenantClient } from '../../common/prisma/tenant-context'
 import { CategoriesService } from './categories.service'
+import { ChangeLogService } from '../sync/change-log.service'
 import { InventoryService } from '../inventory/inventory.service'
 
 /**
@@ -65,6 +66,7 @@ export class ImportService {
   constructor(
     private readonly categories: CategoriesService,
     private readonly inventory: InventoryService,
+    private readonly changeLog: ChangeLogService,
   ) {}
 
   /** The downloadable template: our header row plus one filled example line. */
@@ -366,6 +368,13 @@ export class ImportService {
       await tx.productAlias.createMany({ data: aliasRows, skipDuplicates: true })
     }
 
+    // The bulk create bypasses ProductsService, so it must log its own changes — otherwise an
+    // imported catalogue exists on the server and never reaches a single device (§14.5). One
+    // statement for the whole batch; per-row inserts would dominate the import's runtime.
+    await this.changeLog.recordMany(
+      products.map(({ id }) => ({ entity: 'product' as const, entityId: id, op: 'upsert' as const, rowVersion: 1 })),
+    )
+
     // Opening stock as OPENING_STOCK transactions (§17.2). Batched, which is safe here because
     // every product id was created in this same uncommitted transaction — see the method comment.
     await this.inventory.applyOpeningStockBatch(
@@ -402,7 +411,10 @@ export class ImportService {
     const userId = currentContext()?.userId ?? null
     const tx = tenantClient()
 
+    const changed: string[] = []
+
     for (const { draft, productId } of entries) {
+      changed.push(productId)
       await tx.product.update({
         where: { id: productId },
         data: {
@@ -421,6 +433,10 @@ export class ImportService {
         },
       })
     }
+
+    await this.changeLog.recordMany(
+      changed.map((id) => ({ entity: 'product' as const, entityId: id, op: 'upsert' as const, rowVersion: 1 })),
+    )
 
     return entries.length
   }

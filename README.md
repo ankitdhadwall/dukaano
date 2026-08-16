@@ -14,17 +14,18 @@ budget Android phone with unreliable connectivity.
 
 ## Status
 
-**Phase 2 complete — Catalogue & Inventory.** The API is real: multi-tenant, RLS-enforced,
-audit-logged, and seeded with a working general store. No web or mobile client yet.
+**Phase 3 complete — Sync engine.** The API is real: multi-tenant, RLS-enforced, audit-logged,
+offline-capable, and seeded with a working general store. No web or mobile client yet.
 
 | Phase | Scope | State |
 |---|---|---|
 | 0 | Product definition | ✅ [Blueprint](docs/dukaano-blueprint.md) approved |
 | 1 | Foundation — auth, tenancy, RBAC, money | ✅ [Status](docs/phase-1-status.md) |
 | 2 | Catalogue, inventory, import | ✅ [Status](docs/phase-2-status.md) — 4 of 4 criteria |
-| 3 | Offline sync engine | ⬜ Next |
+| 3 | Offline sync engine | ✅ [Status](docs/phase-3-status.md) — 4 of 4 criteria |
+| 4 | Billing & payments | ⬜ Next |
 
-**663 tests.** `@dukaano/money` and `@dukaano/business-logic` hold 100% branch coverage — they
+**773 tests.** `@dukaano/money` and `@dukaano/business-logic` hold 100% branch coverage — they
 carry the rules where a silent bug is most expensive.
 
 👉 **[Read the Product & Engineering Blueprint](docs/dukaano-blueprint.md)** — the full product

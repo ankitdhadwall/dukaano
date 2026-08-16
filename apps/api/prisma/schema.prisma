@@ -308,6 +308,10 @@ model Device {
   /// cannot model xid8; the sync module reads and writes it with raw SQL.
   lastSyncXmin String?  @map("last_sync_xmin")
   lastSeenAt DateTime? @map("last_seen_at") @db.Timestamptz(3)
+  /// §14.5. When this device last completed a delta pull. Distinct from `lastSeenAt`, which moves
+  /// on any request: a device whose user opens the app daily would look freshly synced while its
+  /// cursor rotted past change-log retention. This is what decides delta vs bootstrap.
+  lastPulledAt DateTime? @map("last_pulled_at") @db.Timestamptz(3)
   /// §25 E-26. Set when the device's clock was too far off to trust for business dating.
   clockSkewMs Int?     @map("clock_skew_ms")
   revokedAt  DateTime? @map("revoked_at") @db.Timestamptz(3)

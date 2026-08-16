@@ -153,6 +153,33 @@ export const hi = {
   'warnings.import.sellingAboveMrp': 'बेचने का दाम एमआरपी से ज़्यादा है।',
   'warnings.import.stockWithoutCost': 'खरीद का दाम डाले बिना स्टॉक की कीमत शून्य दिखेगी, जब तक कोई खरीद दर्ज न हो।',
 
+  // --- errors: sync ---------------------------------------------------------------------------
+  'errors.sync.retryable': 'यह बदलाव अभी सेव नहीं हो पाया। अपने आप दोबारा कोशिश होगी।',
+  'errors.sync.unsupportedEntity': 'ऐप का यह वर्ज़न कुछ ऐसा भेज रहा है जो सर्वर नहीं समझता। कृपया ऐप अपडेट करें।',
+  'errors.sync.deviceUnknown': 'यह डिवाइस दुकान में रजिस्टर नहीं है।',
+  'errors.sync.deviceRevoked': 'यह डिवाइस दुकान से हटा दिया गया है। मालिक से दोबारा जोड़ने को कहें।',
+  'errors.sync.invalidCursor': 'सिंक की जगह सही नहीं थी, इसलिए सारा डेटा दोबारा डाउनलोड होगा।',
+  'errors.sync.invalidOpId': 'ऑपरेशन आईडी सही नहीं है।',
+  'errors.sync.invalidEntityId': 'रिकॉर्ड आईडी सही नहीं है।',
+  'errors.sync.invalidDeviceId': 'डिवाइस आईडी सही नहीं है।',
+  'errors.sync.invalidOpType': 'ऑपरेशन का प्रकार सही नहीं है।',
+  'errors.sync.invalidPlatform': 'डिवाइस का प्लेटफ़ॉर्म सही नहीं है।',
+  'errors.sync.emptyBatch': 'सिंक करने के लिए कुछ नहीं है।',
+  'errors.sync.batchTooLarge': 'एक साथ बहुत सारे बदलाव हैं। ये छोटे-छोटे हिस्सों में भेजे जाएंगे।',
+  'errors.sync.duplicateOpIdInBatch': 'एक ही बदलाव एक बैच में दो बार भेजा गया।',
+
+  // --- sync status (टोस्ट नहीं — हमेशा दिखने वाला बैनर, §14.9) --------------------------------
+  'sync.status.synced': 'सब सेव है',
+  'sync.status.pending': '{{count}} बदलाव सेव होने बाकी हैं',
+  'sync.status.syncing': 'सेव हो रहा है…',
+  'sync.status.offline': 'इंटरनेट नहीं है। आपका काम इसी फ़ोन में सेव है।',
+  'sync.status.failed': 'कुछ बदलाव सेव नहीं हो पाए। देखने के लिए दबाएं।',
+  'sync.conflict.title': 'कुछ बदलाव लागू नहीं हुए',
+  'sync.conflict.priceStale': 'इस फ़ोन का दाम दुकान के दाम से पुराना था, इसलिए दुकान वाला दाम ही रखा गया।',
+  'sync.conflict.stale': 'यह कहीं और हाल ही में बदला गया था, इसलिए वही बदलाव रखा गया।',
+  'sync.conflict.acknowledge': 'ठीक है',
+  'sync.numbers.gapsAreNormal': 'कुछ बिल नंबर छूट सकते हैं। ये normal है।',
+
   // --- notifications -------------------------------------------------------------------------
   'notification.lowStock.title': 'स्टॉक कम है',
   'notification.lowStock.body': '{{count}} चीज़ें खत्म होने वाली हैं।',

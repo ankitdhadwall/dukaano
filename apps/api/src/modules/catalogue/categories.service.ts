@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import type { CreateCategoryInput, UpdateCategoryInput } from '@dukaano/validation'
 import { BusinessRuleError, NotFoundError } from '../../common/errors/domain-error'
 import { tenantClient } from '../../common/prisma/tenant-context'
+import { ChangeLogService } from '../sync/change-log.service'
 
 /**
  * Categories — organisational only.
@@ -14,6 +15,8 @@ import { tenantClient } from '../../common/prisma/tenant-context'
  */
 @Injectable()
 export class CategoriesService {
+  constructor(private readonly changeLog: ChangeLogService) {}
+
   /** Categories with a live product count, so the UI can warn before archiving a populated one. */
   async list(shopId: string, includeArchived = false) {
     return tenantClient().$queryRaw<
@@ -47,7 +50,7 @@ export class CategoriesService {
   async create(shopId: string, input: CreateCategoryInput) {
     await this.assertNameIsFree(shopId, input.nameEn, input.nameHi)
 
-    return tenantClient().category.create({
+    const created = await tenantClient().category.create({
       data: {
         id: randomUUID(),
         shopId,
@@ -56,13 +59,16 @@ export class CategoriesService {
         sortOrder: input.sortOrder ?? 0,
       },
     })
+
+    await this.changeLog.record({ entity: 'category', entityId: created.id, op: 'upsert', rowVersion: 1 })
+    return created
   }
 
   async update(shopId: string, id: string, input: UpdateCategoryInput) {
     await this.findById(shopId, id)
     await this.assertNameIsFree(shopId, input.nameEn, input.nameHi, id)
 
-    return tenantClient().category.update({
+    const updated = await tenantClient().category.update({
       where: { id },
       data: {
         nameEn: input.nameEn !== undefined ? input.nameEn.trim() || null : undefined,
@@ -70,6 +76,11 @@ export class CategoriesService {
         sortOrder: input.sortOrder ?? undefined,
       },
     })
+
+    // Category has no rowVersion column — it carries no financial state and nothing races on it,
+    // so the client's apply key falls back to changed_at ordering for this entity alone.
+    await this.changeLog.record({ entity: 'category', entityId: id, op: 'upsert', rowVersion: 1 })
+    return updated
   }
 
   /**
@@ -87,11 +98,14 @@ export class CategoriesService {
     })
     if (!category) throw new NotFoundError('Category', id)
 
-    return tenantClient().category.update({
+    const archived = await tenantClient().category.update({
       where: { id },
       data: { archivedAt: new Date() },
       select: { id: true, archivedAt: true },
     })
+
+    await this.changeLog.record({ entity: 'category', entityId: id, op: 'archive', rowVersion: 1 })
+    return archived
   }
 
   /**
@@ -127,6 +141,8 @@ export class CategoriesService {
       },
       select: { id: true },
     })
+
+    await this.changeLog.record({ entity: 'category', entityId: created.id, op: 'upsert', rowVersion: 1 })
     return created.id
   }
 

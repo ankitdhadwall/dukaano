@@ -10,6 +10,7 @@ import { asMilli, asPaise } from '@dukaano/money'
 import { INVENTORY_TRANSACTION_TYPES, type InventoryTransactionType } from '@dukaano/types'
 import { BusinessRuleError, NotFoundError } from '../../common/errors/domain-error'
 import { currentContext, tenantClient, type TenantClient } from '../../common/prisma/tenant-context'
+import { ChangeLogService } from '../sync/change-log.service'
 
 export interface MovementRequest {
   readonly productId: string
@@ -49,6 +50,8 @@ export interface MovementResult {
 @Injectable()
 export class InventoryService {
   private readonly logger = new Logger(InventoryService.name)
+
+  constructor(private readonly changeLog: ChangeLogService) {}
 
   /**
    * Apply one stock movement, atomically.
@@ -149,6 +152,19 @@ export class InventoryService {
       where: { shopId_productId: { shopId, productId: request.productId } },
       data: { qtyMilli: BigInt(after), avgCostPaise: BigInt(avgCost), version: { increment: 1n } },
     })
+
+    /*
+     * Two change rows, not one.
+     *
+     * The transaction is the immutable fact; the balance is derived state the device may only
+     * ever receive, never push (§14.7). A client applying just the transaction would have to
+     * recompute the balance itself and would drift the moment its arithmetic differed by a paisa
+     * — so the server sends both and the device stores what it is told.
+     */
+    await this.changeLog.recordMany([
+      { entity: 'inventory_transaction', entityId: transactionId, op: 'upsert', rowVersion: 1 },
+      { entity: 'inventory_balance', entityId: request.productId, op: 'upsert', rowVersion: 1 },
+    ])
 
     const threshold = asMilli(Number(product.lowStockThresholdMilli))
     const crossedLowStock = crossedBelowThreshold(before, after, threshold)
@@ -255,6 +271,23 @@ export class InventoryService {
         version: 1n,
       })),
     })
+
+    await this.changeLog.recordMany(
+      positive.flatMap((entry) => [
+        {
+          entity: 'inventory_transaction' as const,
+          entityId: entry.productId,
+          op: 'upsert' as const,
+          rowVersion: 1,
+        },
+        {
+          entity: 'inventory_balance' as const,
+          entityId: entry.productId,
+          op: 'upsert' as const,
+          rowVersion: 1,
+        },
+      ]),
+    )
 
     return positive.length
   }

@@ -23,5 +23,8 @@ import { UnitsController } from './units.controller'
     MasterCatalogueController,
   ],
   providers: [ProductsService, CategoriesService, ImportService, MasterCatalogueService],
+  // SyncService applies queued product ops through ProductsService — the same method the online
+  // path uses. §14.4 makes that a hard rule: a parallel sync writer drifts from online behaviour.
+  exports: [ProductsService],
 })
 export class CatalogueModule {}

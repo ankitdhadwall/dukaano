@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import request from 'supertest'
 import type { INestApplication } from '@nestjs/common'
+import { randomUUID } from 'node:crypto'
 import { createTestApp, nextPhone, prepareTestDatabase, truncateAll } from './harness'
 import { enumerateRoutes } from './route-table'
 
@@ -26,6 +27,8 @@ describe('tenant isolation', () => {
     membershipId: string
     productId: string
     categoryId: string
+    deviceId: string
+    conflictId: string
   }
   let shopA: Shop
   let shopB: Shop
@@ -64,12 +67,48 @@ describe('tenant isolation', () => {
       .send({ nameEn: `${shopName} Staples` })
       .expect(201)
 
+    const device = await request(app.getHttpServer())
+      .post('/v1/sync/devices')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ platform: 'ANDROID', name: `${shopName} counter phone` })
+      .expect(201)
+    const deviceId = device.body.data.id as string
+
+    // Provoke a real conflict so the inbox route has a genuine id to be attacked with: a product
+    // edit stamped in the past loses to the server's copy, and the refused field lands in the
+    // inbox rather than being dropped.
+    await request(app.getHttpServer())
+      .post('/v1/sync/push')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        deviceId,
+        ops: [
+          {
+            opId: randomUUID(),
+            entity: 'product',
+            entityId: product.body.data.id as string,
+            opType: 'update',
+            baseVersion: 1,
+            clientUpdatedAt: new Date(Date.now() - 86_400_000).toISOString(),
+            payload: { sellingPricePaise: 1 },
+          },
+        ],
+      })
+      .expect(201)
+
+    const conflicts = await request(app.getHttpServer())
+      .get('/v1/sync/conflicts')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200)
+
     return {
       token,
       shopId,
       membershipId: me.body.data.membershipId as string,
       productId: product.body.data.id as string,
       categoryId: category.body.data.id as string,
+      deviceId,
+      conflictId: conflicts.body.data[0].id as string,
     }
   }
 
@@ -174,6 +213,16 @@ describe('tenant isolation', () => {
       name: 'DELETE /v1/categories/:id — archiving another shop’s category',
       method: 'delete',
       path: (victim) => `/v1/categories/${victim.categoryId}`,
+    },
+    {
+      name: 'DELETE /v1/sync/devices/:id — revoking another shop’s device',
+      method: 'delete',
+      path: (victim) => `/v1/sync/devices/${victim.deviceId}`,
+    },
+    {
+      name: 'POST /v1/sync/conflicts/:id/acknowledge — clearing another shop’s conflict inbox',
+      method: 'post',
+      path: (victim) => `/v1/sync/conflicts/${victim.conflictId}/acknowledge`,
     },
   ]
 

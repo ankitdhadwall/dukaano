@@ -5,6 +5,7 @@ import { UNIT_DEFINITIONS, type UnitCode } from '@dukaano/types'
 import { BusinessRuleError } from '../../common/errors/domain-error'
 import { PrismaService } from '../../common/prisma/prisma.service'
 import { currentContext, tenantClient } from '../../common/prisma/tenant-context'
+import { ChangeLogService } from '../sync/change-log.service'
 import { InventoryService } from '../inventory/inventory.service'
 
 /**
@@ -25,6 +26,7 @@ export class MasterCatalogueService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly inventory: InventoryService,
+    private readonly changeLog: ChangeLogService,
   ) {}
 
   /**
@@ -194,6 +196,12 @@ export class MasterCatalogueService {
     if (aliasRows.length > 0) {
       await tx.productAlias.createMany({ data: aliasRows, skipDuplicates: true })
     }
+
+    // Adoption creates products in bulk, bypassing ProductsService, so it logs its own changes
+    // — an adopted catalogue that never reaches the phone is worse than one never adopted.
+    await this.changeLog.recordMany(
+      created.map(({ id }) => ({ entity: 'product' as const, entityId: id, op: 'upsert' as const, rowVersion: 1 })),
+    )
 
     // Opening stock as OPENING_STOCK transactions, never a bare balance write (§17.2). Safe to
     // batch: every product id here was created two statements ago in this same transaction.

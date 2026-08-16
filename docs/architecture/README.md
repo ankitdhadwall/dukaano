@@ -15,6 +15,7 @@ already made — those live in the blueprint.
 | [0004](adr-0004-auth-membership-security-definer.md) | A `SECURITY DEFINER` function for the pre-tenant login lookup | Accepted | — (blueprint silent) |
 | [0005](adr-0005-no-restricted-imports-over-boundaries.md) | `no-restricted-imports` rather than `eslint-plugin-boundaries` | Accepted | Blueprint §29 |
 | [0006](adr-0006-stateless-two-phase-import.md) | Bulk import is stateless and two-phase; XLSX is parsed client-side | Accepted | — (blueprint silent) |
+| [0007](adr-0007-composite-sync-cursor.md) | The sync cursor is a composite `(txid, changeId)`, not an xmin alone | Accepted | Blueprint §14.5 |
 
 ## Format
 

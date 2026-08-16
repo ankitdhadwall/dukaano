@@ -66,3 +66,34 @@ export {
   type NormalizedRow,
   type NormalizeOptions,
 } from './import/rows'
+
+export {
+  resolveProductConflict,
+  authorizeQueuedOperation,
+  isAppendOnlyFact,
+  PRICE_FIELDS,
+  SERVER_AUTHORITATIVE_FIELDS,
+  APPEND_ONLY_ENTITIES,
+  type ProductPatch,
+  type ServerProductState,
+  type ClientEdit,
+  type RejectionReason,
+  type RejectedField,
+  type ResolutionResult,
+} from './sync/conflict'
+
+export {
+  CHANGE_LOG_RETENTION_DAYS,
+  PROCESSED_OPERATION_RETENTION_DAYS,
+  MAX_PUSH_BATCH_OPS,
+  MAX_PULL_LIMIT,
+  SYNC_BACKOFF_MS,
+  backoffDelayMs,
+  decideBootstrap,
+  isValidCursor,
+  parseCursor,
+  formatCursor,
+  type SyncCursor,
+  type BootstrapReason,
+  type BootstrapDecision,
+} from './sync/cursor'

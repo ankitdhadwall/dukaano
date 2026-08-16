@@ -59,6 +59,19 @@ export {
 } from './schemas/catalogue'
 
 export {
+  pushOperationSchema,
+  syncPushSchema,
+  syncPullSchema,
+  registerDeviceSchema,
+  numberLeaseSchema,
+  type PushOperation,
+  type SyncPushInput,
+  type SyncPullInput,
+  type RegisterDeviceInput,
+  type NumberLeaseInput,
+} from './schemas/sync'
+
+export {
   MAX_IMPORT_ROWS,
   MAX_IMPORT_CHARS,
   columnMappingSchema,

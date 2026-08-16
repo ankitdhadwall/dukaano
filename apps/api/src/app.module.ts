@@ -8,6 +8,7 @@ import { ShopsModule } from './modules/shops/shops.module'
 import { MembershipsModule } from './modules/memberships/memberships.module'
 import { CatalogueModule } from './modules/catalogue/catalogue.module'
 import { InventoryModule } from './modules/inventory/inventory.module'
+import { SyncModule } from './modules/sync/sync.module'
 import { HealthController } from './health.controller'
 import { AuthGuard } from './common/guards/auth.guard'
 import { DomainExceptionFilter } from './common/errors/domain-exception.filter'
@@ -45,6 +46,7 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor'
     MembershipsModule,
     InventoryModule,
     CatalogueModule,
+    SyncModule,
   ],
   controllers: [HealthController],
   providers: [

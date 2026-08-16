@@ -147,6 +147,33 @@ export const en = {
   'warnings.import.sellingAboveMrp': 'The selling price is above the MRP.',
   'warnings.import.stockWithoutCost': 'Stock with no purchase price will show a value of zero until you record a purchase.',
 
+  // --- errors: sync ---------------------------------------------------------------------------
+  'errors.sync.retryable': 'That change could not be saved just now. It will be retried automatically.',
+  'errors.sync.unsupportedEntity': 'This app version sent something the server does not understand. Please update the app.',
+  'errors.sync.deviceUnknown': 'This device is not registered with the shop.',
+  'errors.sync.deviceRevoked': 'This device was removed from the shop. Ask the owner to add it again.',
+  'errors.sync.invalidCursor': 'The sync position was not valid, so everything will be downloaded again.',
+  'errors.sync.invalidOpId': 'Invalid operation id.',
+  'errors.sync.invalidEntityId': 'Invalid record id.',
+  'errors.sync.invalidDeviceId': 'Invalid device id.',
+  'errors.sync.invalidOpType': 'Invalid operation type.',
+  'errors.sync.invalidPlatform': 'Invalid device platform.',
+  'errors.sync.emptyBatch': 'There is nothing to sync.',
+  'errors.sync.batchTooLarge': 'Too many changes in one go. They will be sent in smaller batches.',
+  'errors.sync.duplicateOpIdInBatch': 'The same change was sent twice in one batch.',
+
+  // --- sync status (never a toast — a persistent banner, §14.9) --------------------------------
+  'sync.status.synced': 'All saved',
+  'sync.status.pending': '{{count}} changes waiting to be saved',
+  'sync.status.syncing': 'Saving…',
+  'sync.status.offline': 'No internet. Your work is saved on this phone.',
+  'sync.status.failed': 'Some changes could not be saved. Tap to see.',
+  'sync.conflict.title': 'Some changes were not applied',
+  'sync.conflict.priceStale': 'The price on this phone was older than the shop price, so the shop price was kept.',
+  'sync.conflict.stale': 'This was changed somewhere else more recently, so that change was kept.',
+  'sync.conflict.acknowledge': 'Got it',
+  'sync.numbers.gapsAreNormal': 'Some bill numbers may be skipped. This is normal.',
+
   // --- notifications -------------------------------------------------------------------------
   'notification.lowStock.title': 'Running low',
   'notification.lowStock.body': '{{count}} products are running low.',
