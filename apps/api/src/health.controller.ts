@@ -8,6 +8,33 @@ import { PrismaService } from './common/prisma/prisma.service'
 export class HealthController {
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * The service root.
+   *
+   * Exists because the alternative is worse: opening `http://localhost:3000/` in a browser — the
+   * first thing anyone does after starting a server — returned a bare 404 in the API's error
+   * envelope, which reads like something is broken rather than like "this is an API and you want a
+   * different path". This says what the service is and where to go next.
+   *
+   * Deliberately lists no route table: an unauthenticated endpoint enumerating every path is a
+   * gift to anyone probing the service, and the people who need the full list have the source.
+   */
+  @Public()
+  @SkipTenant()
+  @Get()
+  root() {
+    return {
+      service: 'dukaano-api',
+      description: 'Dukaano API. There is no web UI on this port — the clients are Phase 5.',
+      docs: 'docs/dukaano-blueprint.md',
+      endpoints: {
+        health: '/health',
+        locales: '/health/locales',
+        login: 'POST /v1/auth/login',
+      },
+    }
+  }
+
   @Public()
   @SkipTenant()
   @Get('health')
