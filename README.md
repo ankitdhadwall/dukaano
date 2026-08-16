@@ -14,9 +14,10 @@ budget Android phone with unreliable connectivity.
 
 ## Status
 
-**Phase 4 complete (server) — Billing & payments.** The API is real: multi-tenant, RLS-enforced,
-audit-logged, offline-capable, and it can now bill, take payments, run a khata and handle returns.
-No web or mobile client yet — that is Phase 5.
+**Phases 1–5 complete on the server.** The API is real: multi-tenant, RLS-enforced, audit-logged,
+offline-capable, and it can bill, take payments, run a khata and handle returns. No client yet —
+the mobile app is the deferred UI half of Phase 4, and building it is what closes the one
+outstanding acceptance criterion in the project.
 
 | Phase | Scope | State |
 |---|---|---|
@@ -25,9 +26,10 @@ No web or mobile client yet — that is Phase 5.
 | 2 | Catalogue, inventory, import | ✅ [Status](docs/phase-2-status.md) — 4 of 4 criteria |
 | 3 | Offline sync engine | ✅ [Status](docs/phase-3-status.md) — 4 of 4 criteria |
 | 4 | Billing & payments | ✅ [Status](docs/phase-4-status.md) — server done; the on-device timing criterion needs a device |
-| 5 | Mobile app (React Native) | ⬜ Next |
+| 5 | Customers & Khata | ✅ [Status](docs/phase-5-status.md) — 4 of 4 criteria |
+| — | **Dukaano Mobile** (React Native) | ⬜ Next — the deferred UI half of Phase 4 |
 
-**860 tests.** `@dukaano/money` and `@dukaano/business-logic` hold 100% branch coverage — they
+**877 tests.** `@dukaano/money` and `@dukaano/business-logic` hold 100% branch coverage — they
 carry the rules where a silent bug is most expensive.
 
 👉 **[Read the Product & Engineering Blueprint](docs/dukaano-blueprint.md)** — the full product
