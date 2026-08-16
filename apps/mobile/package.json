@@ -1,0 +1,36 @@
+{
+  "name": "@dukaano/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Dukaano Mobile — React Native + Expo. Offline-first billing for a Kirana counter.",
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src",
+    "test": "NODE_OPTIONS=--experimental-sqlite vitest run",
+    "test:coverage": "NODE_OPTIONS=--experimental-sqlite vitest run --coverage"
+  },
+  "dependencies": {
+    "@dukaano/business-logic": "workspace:*",
+    "@dukaano/i18n": "workspace:*",
+    "@dukaano/money": "workspace:*",
+    "@dukaano/types": "workspace:*",
+    "@dukaano/validation": "workspace:*",
+    "expo": "~57.0.13",
+    "expo-sqlite": "^57.0.1",
+    "expo-status-bar": "~57.0.1",
+    "react": "19.2.3",
+    "react-native": "0.86.2"
+  },
+  "devDependencies": {
+    "@dukaano/config": "workspace:*",
+    "@types/react": "~19.2.2",
+    "@vitest/coverage-v8": "^2.1.8",
+    "eslint": "^9.17.0",
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.8"
+  }
+}

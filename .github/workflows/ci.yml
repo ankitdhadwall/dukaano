@@ -39,6 +39,25 @@ jobs:
       - name: Unit tests with coverage gates
         run: pnpm --filter "./packages/**" test:coverage
 
+  mobile:
+    name: Mobile (offline engine against real SQLite)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          # node:sqlite ships with Node 22. The offline engine's tests run against it — the same
+          # SQLite the phone uses, reached through a different binding — so the SQL, the CHECK
+          # constraints and the transaction semantics under test are the ones that ship.
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter "./packages/**" build
+      - run: pnpm --filter @dukaano/mobile lint
+      - run: pnpm --filter @dukaano/mobile typecheck
+      - run: pnpm --filter @dukaano/mobile test
+
   api:
     name: API (integration against real Postgres)
     runs-on: ubuntu-latest
