@@ -102,6 +102,22 @@ jobs:
         env:
           DATABASE_URL: ${{ env.DATABASE_ADMIN_URL_TEST }}
 
+      # The RLS migration creates `dukaano_app` with a development password, because a migration
+      # cannot know a deployment's secrets. CI connects with its own, so the two must be
+      # reconciled explicitly — relying on the workflow and the migration happening to agree on a
+      # magic string is how this broke in the first place, with nine suites failing on
+      # "credentials are not valid".
+      #
+      # Only the password is set here. The role's *properties* — NOBYPASSRLS, non-owner — come
+      # from the migration and are asserted again at boot by PrismaService, so this cannot
+      # accidentally hand the tests a privileged connection.
+      - name: Give the application role the CI password
+        env:
+          PGPASSWORD: ci_password
+        run: |
+          psql -h localhost -U dukaano -d dukaano_test -v ON_ERROR_STOP=1 \
+            -c "ALTER ROLE dukaano_app WITH PASSWORD 'ci_password'"
+
       - name: Lint and typecheck
         working-directory: apps/api
         run: |
