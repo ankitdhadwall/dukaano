@@ -3,7 +3,7 @@ import request from 'supertest'
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import type { INestApplication } from '@nestjs/common'
-import { createTestApp, nextPhone, prepareTestDatabase, sql, truncateAll } from './harness'
+import { adminConnectionString, createTestApp, nextPhone, prepareTestDatabase, sql, truncateAll } from './harness'
 
 /**
  * Phase 3 — the sync engine (blueprint §14).
@@ -152,13 +152,22 @@ describe('sync engine', () => {
       const slowProductId = randomUUID()
       const fastProductId = randomUUID()
 
-      // Session A: insert, then sit on the open transaction. Spawned rather than exec'd so the
-      // test continues while it holds; `docker exec -d` cannot be combined with a container name.
+      /*
+       * Session A: insert, then sit on the open transaction.
+       *
+       * Spawned rather than exec'd so the test continues while it holds, and pointed at the
+       * connection string rather than `docker exec dukaano-postgres`. The docker form worked
+       * locally and silently no-opped in CI — no container, so no transaction was ever held, so
+       * nothing was in flight and the assertion below failed for the wrong reason. A test whose
+       * setup can quietly not happen is worse than no test, and this is the most important test
+       * in the project.
+       */
       const holder = spawn(
-        'docker',
+        'psql',
         [
-          'exec', '-i', 'dukaano-postgres',
-          'psql', '-U', 'dukaano', '-d', 'dukaano_test', '-c',
+          adminConnectionString(),
+          '-v', 'ON_ERROR_STOP=1',
+          '-c',
           `BEGIN; INSERT INTO change_log (shop_id, entity, entity_id, op, row_version) ` +
             `VALUES ('${shopId}', 'product', '${slowProductId}', 'upsert', 1); ` +
             `SELECT pg_sleep(4); COMMIT;`,
@@ -168,6 +177,27 @@ describe('sync engine', () => {
 
       // Let session A take its id and begin sleeping.
       await new Promise((resolve) => setTimeout(resolve, 800))
+
+      /*
+       * Prove the setup actually happened before asserting anything about it.
+       *
+       * This test previously spawned `docker exec`, which silently did nothing in CI: no
+       * transaction was held, nothing was in flight, and the assertions below then failed for a
+       * reason that had nothing to do with the cursor. A test whose setup can quietly not happen
+       * is worse than no test — it reports a bug that does not exist and hides the one it was
+       * written to catch.
+       */
+      const holdersOpen = Number(
+        sql(
+          "SELECT count(*) FROM pg_stat_activity " +
+            "WHERE state IN ('active','idle in transaction') AND query LIKE '%pg_sleep%'",
+        ),
+      )
+      expect(
+        holdersOpen,
+        'no transaction is being held open — the lost-change scenario was never set up, so ' +
+          'whatever this test reports next is meaningless',
+      ).toBeGreaterThan(0)
 
       // Session B: insert and commit immediately. This gets a HIGHER id than the open one.
       sql(

@@ -77,6 +77,16 @@ export function sql(statement: string): string {
     .trim()
 }
 
+/**
+ * The owner connection string, in a form libpq accepts.
+ *
+ * Exported for the one test that needs to hold a transaction open in a **second connection** —
+ * the lost-change test, which cannot be written any other way.
+ */
+export function adminConnectionString(): string {
+  return libpqUrl(ADMIN_URL)
+}
+
 /** The same, parsed as a number. Empty output (no rows) reads as 0. */
 export function sqlNumber(statement: string): number {
   return Number(sql(statement) || '0')
